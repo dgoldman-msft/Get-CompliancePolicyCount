@@ -15,7 +15,7 @@ function Get-CompliancePolicyCount {
 	.PARAMETER OutputFile
 		Save file
 
-	.PARAMETER SaveScanToDisk
+	.PARAMETER SaveResults
 		Switch to indicate saving output to a logging file
 
 	.PARAMETER TranscriptFile
@@ -24,20 +24,20 @@ function Get-CompliancePolicyCount {
 	.PARAMETER UserPrincipalName
 		Name of the admin account used to log in to the Exchange and Security and Compliance workloads
 
+    .EXAMPLE
+		C:\PS> Get-CompliancePolicyCount -UserPrincipalName admin@tenant.onmicrosoft.com -SaveResults
+
+		Will connect to your tenant as your administrator, query all policy results and save them to disk for review.
+
 	.EXAMPLE
 		C:\PS> Get-CompliancePolicyCount -EnableDebugLogging
 
-		Enable debugging logging. Transcript logs will be saved to c:\PolicyLogging\Transcript.log"
+		Enable debugging logging. Transcript logs will be saved to c:\CompliancePolicyLogging\Transcript.log"
 
 	.EXAMPLE
-		C:\PS> Get-CompliancePolicyCount -UserPrincipalName admin@tenant.onmicrosoft.com
+		C:\PS> Get-CompliancePolicyCount -SaveResults -Verbose
 
-		Logs in to both Exchange online and the Security and Compliance workloads to pull compliance policy information
-
-	.EXAMPLE
-		C:\PS> Get-CompliancePolicyCount -SaveScanToDisk -Verbose
-
-		Save the current scan to the default location of c:\PolicyLogging\PolicyResults.csv
+		Query compliance policy information and save the current scan to the default location of c:\CompliancePolicyLogging\PolicyResults.csv
 
 	.NOTES
 		1. Limits for Microsoft 365 retention policies and retention label policies - Microsoft Purview (compliance) | Microsoft Docs (https://docs.microsoft.com/en-us/microsoft-365/compliance/retention-limits?view=o365-worldwide)
@@ -51,13 +51,13 @@ function Get-CompliancePolicyCount {
         $EnableDebugLogging,
 
         [string]
-        $OutputDirectory = "c:\PolicyLogging",
+        $OutputDirectory = "c:\CompliancePolicyLogging",
 
         [string]
-        $OutputFile = "PolicyResults",
+        $OutputFile = "CompliancePolicyResults",
 
         [switch]
-        $SaveScanToDisk,
+        $SaveResults,
 
         [string]
         $TranscriptFile = "Transcript.log",
@@ -192,9 +192,9 @@ function Get-CompliancePolicyCount {
                 return
             }
 
-            if ($parameters.ContainsKey('SaveScanToDisk')) {
+            if ($parameters.ContainsKey('SaveResults')) {
                 try {
-                    Write-Output "Saving $($orgSettings.Name)'s policy data to: $OutputDirectory"
+                    Write-Output "Saving $($orgSettings.Name)'s compliance policy data to: $OutputDirectory"
                     [PSCustomObject]$retentionPolicyList | Sort-Object | Export-Csv -Path (Join-Path -Path $OutputDirectory -ChildPath 'RetentionPolicyList.csv') -Encoding utf8 -NoTypeInformation
                     [PSCustomObject]$standardDiscoveryPolicies | Sort-Object | Export-Csv -Path (Join-Path -Path $OutputDirectory -ChildPath 'StandardDiscoveryPolicies.csv') -Encoding utf8 -NoTypeInformation
                     [PSCustomObject]$advancedDiscoveryPolicies | Sort-Object | Export-Csv -Path (Join-Path -Path $OutputDirectory -ChildPath 'AdvancedDiscoveryPolicies.csv') -Encoding utf8 -NoTypeInformation
@@ -239,6 +239,6 @@ function Get-CompliancePolicyCount {
     end {
         Write-Verbose "Reverting ErrorActionPreference of 'Stop' to $savedErrorActionPreference"
         $ErrorActionPreference = $savedErrorActionPreference
-        Write-Output "Compliance policy evaluation of $($orgSettings.Name) finished!"
+        Write-Output "Compliance policy evaluation of $($orgSettings.Name) completed!"
     }
 }

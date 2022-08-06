@@ -1,20 +1,18 @@
 # Get-CompliancePolicyCount
 Calculate total number of O365 tenant wide compliance related policies
 
-> WARNING: This data collection can contain sensitive information such as computer names, file names, and other PII / OII. Please vet files before sending to any support professionals for review!
+><b><span style="color:red">WARNING</span>: <span style="color:yellow">This data collection can contain sensitive information such as computer names, file names, and other PII / OII. Please vet files before sending to any support professionals for review!</span>
 
-> <span style="color:red">NOTICE</span>: <span style="color:yellow"> When you run this script you acknowledge that you take full responsibility for the data collection and security of your private information!</span>
+> <span style="color:red">NOTICE</span>: <span style="color:yellow"> When you run this script you acknowledge that you take full responsibility for the data collection and security of your private information!</span></b>
 
-- EXAMPLES
-  
-> C:\PS> Get-CompliancePolicyCount -EnableDebugLogging
+- EXAMPLE 1: Get-CompliancePolicyCount -UserPrincipalName admin@tenant.onmicrosoft.com -SaveResults
 
-		Enable debugging logging. Transcript logs will be saved to c:\PolicyLogging\Transcript.log"
+	Will connect to your tenant as your administrator, query all policy results and save them to disk for review.
 
-> C:\PS> Get-CompliancePolicyCount -UserPrincipalName admin@tenant.onmicrosoft.com
+- EXAMPLE 2: Get-CompliancePolicyCount -EnableDebugLogging
 
-		Logs in to both Exchange online and the Security and Compliance workloads to pull compliance policy information
+	Enable debugging logging. Transcript logs will be saved to c:\CompliancePolicyLogging\Transcript.log"
 
-> C:\PS> Get-CompliancePolicyCount -SaveScanToDisk -Verbose
+- EXAMPLE 3: Get-CompliancePolicyCount -SaveResults -Verbose
 
-		Save the current scan to the default location of c:\PolicyLogging\PolicyResults.csv
+	Query compliance policy information and save the current scan to the default location of c:\CompliancePolicyLogging\PolicyResults.csv
