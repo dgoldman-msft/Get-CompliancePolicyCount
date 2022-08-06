@@ -91,6 +91,25 @@ function Get-CompliancePolicyCount {
         }
 
         try {
+            Write-Verbose "Checking for the ExchangeOnlineManagement module"
+            if (-NOT (Get-Module -Name ExchangeOnlineManagement -ListAvailable)) {
+                Write-Verbose "Installing the ExchangeOnlineManagement module from the PowerShellGallery"
+                if (Install-Module -Name ExchangeOnlineManagement -Repository PSGallery -Scope CurrentUser -Force) {
+                    Write-Verbose "Importing the ExchangeOnlineManagement"
+                    Import-Module -Name ExchangeOnlineManagement -Force
+                }
+            }
+            else {
+                Write-Verbose "ExchangeOnlineManagement found. Importing module"
+                Import-Module -Name ExchangeOnlineManagement -Force
+            }
+        }
+        catch {
+            Write-Output "ERROR: $_"
+            return
+        }
+
+        try {
             Write-Verbose "Checking for existence of: $($OutputDirectory)"
             if (-NOT(Test-Path -Path $OutputDirectory)) {
                 $null = New-Item -Path $OutputDirectory -ItemType Directory
@@ -99,6 +118,7 @@ function Get-CompliancePolicyCount {
         }
         catch {
             Write-Output "ERROR: $_"
+            return
         }
     }
 
@@ -107,6 +127,13 @@ function Get-CompliancePolicyCount {
             Write-Output "Connecting to Exchange Online and the Security and Compliance Center"
             Connect-ExchangeOnline -UserPrincipalName $UserPrincipalName -ShowBanner:$false -ShowProgress:$false
             Connect-IPPSSession -UserPrincipalName $UserPrincipalName
+        }
+        catch {
+            Write-Output "ERROR: $_"
+            return
+        }
+
+        try {
             Write-Verbose "Querying Organization Configuration - In-place Hold Policies"
             $orgSettings = Get-OrganizationConfig | Select-Object Name, InPlaceHolds, GUID
             foreach ($inPlaceHold in $orgSettings.InPlaceHolds) {
@@ -124,37 +151,49 @@ function Get-CompliancePolicyCount {
 
             Write-Verbose "Querying $($orgSettings.Name)'s standard eDiscovery cases"
             # eDiscovery Standard cases in the Microsoft Purview compliance center
-            $standardDiscoveryCases = Get-ComplianceCase
-            foreach ($standardCase in $standardDiscoveryCases) {
-                $policyCounter ++
-                $null = $standardDiscoveryPolicyList.Add($standardCase)
-                #Get-CaseHoldPolicy -Case $standardCase.Name
-                if (Get-ComplianceCaseMember -Case $standardCase.Name) {
+            if ($standardDiscoveryCases = Get-ComplianceCase) {
+                foreach ($standardCase in $standardDiscoveryCases) {
                     $policyCounter ++
+                    $null = $standardDiscoveryPolicyList.Add($standardCase)
+                    #Get-CaseHoldPolicy -Case $standardCase.Name
+                    if (Get-ComplianceCaseMember -Case $standardCase.Name) {
+                        $policyCounter ++
+                    }
                 }
+            }
+            else {
+                $standardDiscoveryCases = "No standard eDiscovery cases found"
             }
 
             Write-Verbose "Querying $($orgSettings.Name)'s advanced eDiscovery Cases"
             # eDiscovery Advanced cases in the Microsoft Purview compliance center
-            $advancedEDiscoveryCases = Get-ComplianceCase -CaseType Advanced
-            foreach ($advancedCase in $advancedEDiscoveryCases) {
-                $policyCounter ++
-                # Case hold policies in the Microsoft Purview compliance center
-                #Get-CaseHoldPolicy -Case $advancedCase.Name
-                $null = $advancedDiscoveryPolicyList.Add($advancedCase)
-                if (Get-ComplianceCaseMember -Case $standardCase.Name) {
+            if ($advancedEDiscoveryCases = Get-ComplianceCase -CaseType Advanced) {
+                foreach ($advancedCase in $advancedEDiscoveryCases) {
                     $policyCounter ++
+                    # Case hold policies in the Microsoft Purview compliance center
+                    #Get-CaseHoldPolicy -Case $advancedCase.Name
+                    $null = $advancedDiscoveryPolicyList.Add($advancedCase)
+                    if (Get-ComplianceCaseMember -Case $standardCase.Name) {
+                        $policyCounter ++
+                    }
                 }
+            }
+            else {
+                $advancedEDiscoveryCases = "No advanced eDiscovery cases found"
             }
 
             Write-Verbose "Querying $($orgSettings.Name)'s retention label policies"
-            $retentionLabels = Get-DlpCompliancePolicy # (DLP) policies in the Microsoft Purview compliance portal.
-            Write-Verbose "Retention labels found: $($retentionLabels.count)"
+            # (DLP) policies in the Microsoft Purview compliance portal.
+            if ($retentionLabels = Get-DlpCompliancePolicy) {
+                Write-Verbose "Retention labels found: $($retentionLabels.count)"
+            }
+            else {
+                $retentionLabels = "No retention labels found"
+            }
 
             if ($policyCounter -ge $maximumPolicyCount) {
                 $output = "WARNING: The $($orgSettings.Name) tenant has $policyCounter compliance policies.. This exceeds the $maximumPolicyCount policies limit"
                 Write-Output $output
-
             }
             else {
                 $output = "The $($orgSettings.Name) tenant has $policyCounter compliance policies and is under the maximum number of $maximumPolicyCount"
@@ -239,6 +278,7 @@ function Get-CompliancePolicyCount {
     end {
         Write-Verbose "Reverting ErrorActionPreference of 'Stop' to $savedErrorActionPreference"
         $ErrorActionPreference = $savedErrorActionPreference
-        Write-Output "Compliance policy evaluation of $($orgSettings.Name) completed!"
+        if ($orgSettings.Name) { Write-Output "Compliance policy evaluation of $($orgSettings.Name) completed!" }
+        else { Write-Output "Compliance policy evaluation completed!" }
     }
 }
