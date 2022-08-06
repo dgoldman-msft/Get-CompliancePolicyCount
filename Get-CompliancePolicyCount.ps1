@@ -71,12 +71,12 @@ function Get-CompliancePolicyCount {
         $parameters = $PSBoundParameters
         $policyCounter = 0
         $maximumPolicyCount = 10000
+        $savedErrorActionPreference = $ErrorActionPreference
         [System.Collections.ArrayList] $inPlaceHoldsList = @()
         [System.Collections.ArrayList] $retentionPolicyList = @()
         [System.Collections.ArrayList] $standardDiscoveryPolicyList = @()
         [System.Collections.ArrayList] $advancedDiscoveryPolicyList = @()
 
-        $savedErrorActionPreference = $ErrorActionPreference
         Write-Verbose "Saving current ErrorActionPreference of $savedErrorActionPreference and changing to 'Stop'"
         $ErrorActionPreference = 'Stop'
 
@@ -108,13 +108,13 @@ function Get-CompliancePolicyCount {
             Connect-ExchangeOnline -UserPrincipalName $UserPrincipalName -ShowBanner:$false -ShowProgress:$false
             Connect-IPPSSession -UserPrincipalName $UserPrincipalName
             Write-Verbose "Querying Organization Configuration - In-place Hold Policies"
-            $orgSettings = Get-OrganizationConfig | Select-Object InPlaceHolds, GUID
+            $orgSettings = Get-OrganizationConfig | Select-Object Name, InPlaceHolds, GUID
             foreach ($inPlaceHold in $orgSettings.InPlaceHolds) {
                 $policyCounter ++
                 $null = $inPlaceHoldsList.Add($inPlaceHold)
             }
 
-            Write-Verbose "Querying retention polices"
+            Write-Verbose "Querying $($orgSettings.Name)'s retention polices"
             # Retention policies in the Microsoft Purview compliance center
             $retentionPolicies = Get-RetentionCompliancePolicy
             foreach ($retentionPolicy in $retentionPolicies) {
@@ -122,7 +122,7 @@ function Get-CompliancePolicyCount {
                 $null = $retentionPolicyList.Add($retentionPolicy)
             }
 
-            Write-Verbose "Querying standard eDiscovery cases"
+            Write-Verbose "Querying $($orgSettings.Name)'s standard eDiscovery cases"
             # eDiscovery Standard cases in the Microsoft Purview compliance center
             $standardDiscoveryCases = Get-ComplianceCase
             foreach ($standardCase in $standardDiscoveryCases) {
@@ -134,7 +134,7 @@ function Get-CompliancePolicyCount {
                 }
             }
 
-            Write-Verbose "Querying advanced eDiscovery Cases"
+            Write-Verbose "Querying $($orgSettings.Name)'s advanced eDiscovery Cases"
             # eDiscovery Advanced cases in the Microsoft Purview compliance center
             $advancedEDiscoveryCases = Get-ComplianceCase -CaseType Advanced
             foreach ($advancedCase in $advancedEDiscoveryCases) {
@@ -147,22 +147,22 @@ function Get-CompliancePolicyCount {
                 }
             }
 
-            Write-Verbose "Querying retention label policies"
+            Write-Verbose "Querying $($orgSettings.Name)'s retention label policies"
             $retentionLabels = Get-DlpCompliancePolicy # (DLP) policies in the Microsoft Purview compliance portal.
             Write-Verbose "Retention labels found: $($retentionLabels.count)"
 
-            if ($policyCounter -gt $maximumPolicyCount) {
-                $output = "WARNING: The number of policies in your tenant are: $policyCounter. This exceeds the maximum number of policies allowed which is: $maximumPolicyCount"
+            if ($policyCounter -ge $maximumPolicyCount) {
+                $output = "WARNING: The $($orgSettings.Name) tenant has $policyCounter compliance policies.. This exceeds the $maximumPolicyCount policies limit"
                 Write-Output $output
 
             }
             else {
-                $output = "Your tenant has $policyCounter compliance policies which is under the maximum number of policies allowed which is: $maximumPolicyCount"
+                $output = "The $($orgSettings.Name) tenant has $policyCounter compliance policies and is under the maximum number of $maximumPolicyCount"
                 Write-Output $output
             }
 
             try {
-                Write-Output "Preforming session cleanup"
+                Write-Output "Preforming session cleanup to: $($orgSettings.Name)"
                 $sessions = Get-PSSession
                 foreach ($session in $sessions) {
                     if ($session.ComputerName -like '*compliance*' -or $session.ComputerName -eq 'outlook.office365.com') {
@@ -194,7 +194,7 @@ function Get-CompliancePolicyCount {
 
             if ($parameters.ContainsKey('SaveScanToDisk')) {
                 try {
-                    Write-Output "Saving policy data to: $OutputDirectory"
+                    Write-Output "Saving $($orgSettings.Name)'s policy data to: $OutputDirectory"
                     [PSCustomObject]$retentionPolicyList | Sort-Object | Export-Csv -Path (Join-Path -Path $OutputDirectory -ChildPath 'RetentionPolicyList.csv') -Encoding utf8 -NoTypeInformation
                     [PSCustomObject]$standardDiscoveryPolicies | Sort-Object | Export-Csv -Path (Join-Path -Path $OutputDirectory -ChildPath 'StandardDiscoveryPolicies.csv') -Encoding utf8 -NoTypeInformation
                     [PSCustomObject]$advancedDiscoveryPolicies | Sort-Object | Export-Csv -Path (Join-Path -Path $OutputDirectory -ChildPath 'AdvancedDiscoveryPolicies.csv') -Encoding utf8 -NoTypeInformation
@@ -230,7 +230,6 @@ function Get-CompliancePolicyCount {
                     return
                 }
             }
-
         }
         catch {
             Write-Output "ERROR: $_"
@@ -238,9 +237,8 @@ function Get-CompliancePolicyCount {
     }
 
     end {
-
         Write-Verbose "Reverting ErrorActionPreference of 'Stop' to $savedErrorActionPreference"
         $ErrorActionPreference = $savedErrorActionPreference
-        Write-Output "Policy evaluation finished!"
+        Write-Output "Compliance policy evaluation of $($orgSettings.Name) finished!"
     }
 }
