@@ -173,7 +173,9 @@ function Get-CompliancePolicyCount {
                     # Case hold policies in the Microsoft Purview compliance center
                     #Get-CaseHoldPolicy -Case $advancedCase.Name
                     $null = $advancedDiscoveryPolicyList.Add($advancedCase)
-                    if (Get-ComplianceCaseMember -Case $standardCase.Name) {
+                    if (Get-ComplianceCaseMember -Case $advancedCase.Name) {
+                        # TODO: Why your other users werent detected
+                        # TODO: Do we need to account for sharepoint and other locations as policies
                         $policyCounter ++
                     }
                 }
