@@ -45,7 +45,7 @@ function Get-CompliancePolicyCount {
 		3. eDiscovery API for Microsoft Graph is now generally available - https://devblogs.microsoft.com/microsoft365dev/ediscovery-api-for-microsoft-graph-is-now-generally-available/
 	#>
 
-    [CmdletBinding()]
+    [CmdletBinding(DefaultParameterSetName = 'Default')]
     param(
         [switch]
         $EnableDebugLogging,
@@ -77,9 +77,6 @@ function Get-CompliancePolicyCount {
         [System.Collections.ArrayList] $standardDiscoveryPolicyList = @()
         [System.Collections.ArrayList] $advancedDiscoveryPolicyList = @()
 
-        Write-Verbose "Saving current ErrorActionPreference of $savedErrorActionPreference and changing to 'Stop'"
-        $ErrorActionPreference = 'Stop'
-
         try {
             if ($parameters.ContainsKey('EnableDebugLogging')) {
                 Write-Verbose "Starting debug logging"
@@ -90,7 +87,13 @@ function Get-CompliancePolicyCount {
             Write-Output "ERROR: $_"
         }
 
+        Write-Verbose "Saving current ErrorActionPreference of $savedErrorActionPreference and changing to 'Stop'"
+        $ErrorActionPreference = 'Stop'
+
+        if ($UserPrincipalName -eq 'admin@tenant.onmicrosoft.com') { $UserPrincipalName = Read-Host -Prompt "Please enter an admin account" }
+
         try {
+
             Write-Verbose "Checking for the ExchangeOnlineManagement module"
             if (-NOT (Get-Module -Name ExchangeOnlineManagement -ListAvailable)) {
                 Write-Verbose "Installing the ExchangeOnlineManagement module from the PowerShellGallery"
@@ -124,8 +127,9 @@ function Get-CompliancePolicyCount {
 
     process {
         try {
-            Write-Output "Connecting to Exchange Online and the Security and Compliance Center"
+            Write-Output "Connecting to Exchange Online"
             Connect-ExchangeOnline -UserPrincipalName $UserPrincipalName -ShowBanner:$false -ShowProgress:$false
+            Write-Output "Connecting to the Security and Compliance Center"
             Connect-IPPSSession -UserPrincipalName $UserPrincipalName
         }
         catch {
@@ -174,9 +178,9 @@ function Get-CompliancePolicyCount {
                     #Get-CaseHoldPolicy -Case $advancedCase.Name
                     $null = $advancedDiscoveryPolicyList.Add($advancedCase)
                     if (Get-ComplianceCaseMember -Case $advancedCase.Name) {
-                        # TODO: Why your other users werent detected
-                        # TODO: Do we need to account for sharepoint and other locations as policies
                         $policyCounter ++
+                        # TODO: Why your other users weren't detected
+                        # TODO: Do we need to account for sharepoint and other locations as policies
                     }
                 }
             }
@@ -186,12 +190,8 @@ function Get-CompliancePolicyCount {
 
             Write-Verbose "Querying $($orgSettings.Name)'s retention label policies"
             # (DLP) policies in the Microsoft Purview compliance portal.
-            if ($retentionLabels = Get-DlpCompliancePolicy) {
-                Write-Verbose "Retention labels found: $($retentionLabels.count)"
-            }
-            else {
-                $retentionLabels = "No retention labels found"
-            }
+            if ($retentionLabels = Get-DlpCompliancePolicy) { Write-Verbose "Retention labels found: $($retentionLabels.count)" }
+            else { $retentionLabels = "No retention labels found" }
 
             if ($policyCounter -ge $maximumPolicyCount) {
                 $output = "WARNING: The $($orgSettings.Name) tenant has $policyCounter compliance policies.. This exceeds the $maximumPolicyCount policies limit"
@@ -241,26 +241,27 @@ function Get-CompliancePolicyCount {
                     [PSCustomObject]$advancedDiscoveryPolicies | Sort-Object | Export-Csv -Path (Join-Path -Path $OutputDirectory -ChildPath 'AdvancedDiscoveryPolicies.csv') -Encoding utf8 -NoTypeInformation
 
                     foreach ($hold in $inPlaceHoldsList) {
-                        $holdResults = $hold -split '(mbx|grp|skp|:|cld|UniH)'
+                        $holdResults = (($hold -split '(mbx|grp|skp|:|cld|UniH)') -match '\S')
 
                         switch ($holdResults[1]) {
-                            'UniH' { $prefix = 'eDiscovery cases (holds) in the Security and Compliance Center' }
-                            'cld' { $prefix = 'Exchange mailbox specific hold (in-place hold)' }
-                            'mbx' { $prefix = 'Organization-wide retention policies applied to Exchange mailboxes, Exchange public folders, and 1xN chats in Microsoft Teams. Note 1xN chats are stored in the mailbox of the individual chat participants.' }
-                            'grp' { $prefix = 'Organization-wide retention policies applied to Office 365 groups and channel messages in Microsoft Teams.' }
-                            'skp' { $prefix = 'Indicates that the retention policy is configured to hold items and then delete them after the retention period expires.' }
+                            'UniH' { $prefixDescription = 'eDiscovery cases (holds) in the Security and Compliance Center' }
+                            'cld' { $prefixDescription = 'Exchange mailbox specific hold (in-place hold)' }
+                            'mbx' { $prefixDescription = 'Organization-wide retention policies applied to Exchange mailboxes, Exchange public folders, and 1xN chats in Microsoft Teams. Note 1xN chats are stored in the mailbox of the individual chat participants.' }
+                            'grp' { $prefixDescription = 'Organization-wide retention policies applied to Office 365 groups and channel messages in Microsoft Teams.' }
+                            'skp' { $prefixDescription = 'Indicates that the retention policy is configured to hold items and then delete them after the retention period expires.' }
                         }
 
-                        switch ($holdResults[4]) {
+                        switch ($holdResults[1]) {
                             1 { $retentionActionValueDescription = 'Indicates that the retention policy is configured to delete items. The policy does not retain items.' }
                             2 { $retentionActionValueDescription = 'Indicates that the retention policy is configured to hold items. The policy does not delete items after the retention period expires.' }
                             3 { $retentionActionValueDescription = 'Indicates that the retention policy is configured to hold items and then delete them after the retention period expires.' }
                         }
 
                         $inPlaceHoldsCustom = [PSCustomObject]@{
-                            Prefix                     = $prefix
-                            GUID                       = $holdResults[2]
-                            RetentionAction            = $holdResults[4]
+                            Prefix                     = $holdResults[0]
+                            PrefixDescription          = $prefixDescription
+                            GUID                       = $holdResults[1]
+                            RetentionAction            = $holdResults[3]
                             RetentionActionDescription = $retentionActionValueDescription
                         }
                         [PSCustomObject]$inPlaceHoldsCustom | Sort-Object | Export-Csv -Path (Join-Path -Path $OutputDirectory -ChildPath 'inPlaceHolds.csv') -Encoding utf8 -NoTypeInformation -Append
