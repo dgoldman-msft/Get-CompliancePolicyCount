@@ -46,6 +46,7 @@ function Get-CompliancePolicyCount {
 	#>
 
     [CmdletBinding(DefaultParameterSetName = 'Default')]
+    [OutputType('System.String')]
     param(
         [switch]
         $EnableDebugLogging,
@@ -69,6 +70,7 @@ function Get-CompliancePolicyCount {
     begin {
         Write-Output "Starting policy evaluation"
         $parameters = $PSBoundParameters
+        $random = Get-Random
         $policyCounter = 0
         $maximumPolicyCount = 10000
         $savedErrorActionPreference = $ErrorActionPreference
@@ -93,7 +95,6 @@ function Get-CompliancePolicyCount {
         if ($UserPrincipalName -eq 'admin@tenant.onmicrosoft.com') { $UserPrincipalName = Read-Host -Prompt "Please enter an admin account" }
 
         try {
-
             Write-Verbose "Checking for the ExchangeOnlineManagement module"
             if (-NOT (Get-Module -Name ExchangeOnlineManagement -ListAvailable)) {
                 Write-Verbose "Installing the ExchangeOnlineManagement module from the PowerShellGallery"
@@ -128,9 +129,9 @@ function Get-CompliancePolicyCount {
     process {
         try {
             Write-Output "Connecting to Exchange Online"
-            Connect-ExchangeOnline -UserPrincipalName $UserPrincipalName -ShowBanner:$false -ShowProgress:$false
+            Connect-ExchangeOnline -UserPrincipalName $UserPrincipalName -ShowBanner:$false -ShowProgress:$false -ErrorVariable failedConnection
             Write-Output "Connecting to the Security and Compliance Center"
-            Connect-IPPSSession -UserPrincipalName $UserPrincipalName
+            Connect-IPPSSession -UserPrincipalName $UserPrincipalName -ErrorVariable FailedConnection
         }
         catch {
             Write-Output "ERROR: $_"
@@ -224,7 +225,7 @@ function Get-CompliancePolicyCount {
 
             # Save policy count
             try {
-                $policyCountLogFile = $env:COMPUTERNAME + '-' + "PolicyCount.txt"
+                $policyCountLogFile = $env:COMPUTERNAME + "-$random-PolicyCount.txt"
                 $output | Out-File -FilePath (Join-Path -Path $OutputDirectory -ChildPath $policyCountLogFile) -Encoding utf8
                 Write-Output "Saving policy count data to: $OutputDirectory\$policyCountLogFile"
             }
@@ -236,14 +237,14 @@ function Get-CompliancePolicyCount {
             if ($parameters.ContainsKey('SaveResults')) {
                 try {
                     Write-Output "Saving $($orgSettings.Name)'s compliance policy data to: $OutputDirectory"
-                    [PSCustomObject]$retentionPolicyList | Sort-Object | Export-Csv -Path (Join-Path -Path $OutputDirectory -ChildPath 'RetentionPolicyList.csv') -Encoding utf8 -NoTypeInformation
-                    [PSCustomObject]$standardDiscoveryPolicies | Sort-Object | Export-Csv -Path (Join-Path -Path $OutputDirectory -ChildPath 'StandardDiscoveryPolicies.csv') -Encoding utf8 -NoTypeInformation
-                    [PSCustomObject]$advancedDiscoveryPolicies | Sort-Object | Export-Csv -Path (Join-Path -Path $OutputDirectory -ChildPath 'AdvancedDiscoveryPolicies.csv') -Encoding utf8 -NoTypeInformation
+                    [PSCustomObject]$retentionPolicyList | Sort-Object | Export-Csv -Path (Join-Path -Path $OutputDirectory -ChildPath "-$random-RetentionPolicyList.csv") -Encoding utf8 -NoTypeInformation
+                    [PSCustomObject]$standardDiscoveryPolicies | Sort-Object | Export-Csv -Path (Join-Path -Path $OutputDirectory -ChildPath "-$random-StandardDiscoveryPolicies.csv") -Encoding utf8 -NoTypeInformation
+                    [PSCustomObject]$advancedDiscoveryPolicies | Sort-Object | Export-Csv -Path (Join-Path -Path $OutputDirectory -ChildPath "-$random-AdvancedDiscoveryPolicies.csv") -Encoding utf8 -NoTypeInformation
 
                     foreach ($hold in $inPlaceHoldsList) {
                         $holdResults = (($hold -split '(mbx|grp|skp|:|cld|UniH)') -match '\S')
 
-                        switch ($holdResults[1]) {
+                        switch ($holdResults[0]) {
                             'UniH' { $prefixDescription = 'eDiscovery cases (holds) in the Security and Compliance Center' }
                             'cld' { $prefixDescription = 'Exchange mailbox specific hold (in-place hold)' }
                             'mbx' { $prefixDescription = 'Organization-wide retention policies applied to Exchange mailboxes, Exchange public folders, and 1xN chats in Microsoft Teams. Note 1xN chats are stored in the mailbox of the individual chat participants.' }
@@ -251,7 +252,7 @@ function Get-CompliancePolicyCount {
                             'skp' { $prefixDescription = 'Indicates that the retention policy is configured to hold items and then delete them after the retention period expires.' }
                         }
 
-                        switch ($holdResults[1]) {
+                        switch ($holdResults[3]) {
                             1 { $retentionActionValueDescription = 'Indicates that the retention policy is configured to delete items. The policy does not retain items.' }
                             2 { $retentionActionValueDescription = 'Indicates that the retention policy is configured to hold items. The policy does not delete items after the retention period expires.' }
                             3 { $retentionActionValueDescription = 'Indicates that the retention policy is configured to hold items and then delete them after the retention period expires.' }
@@ -264,7 +265,7 @@ function Get-CompliancePolicyCount {
                             RetentionAction            = $holdResults[3]
                             RetentionActionDescription = $retentionActionValueDescription
                         }
-                        [PSCustomObject]$inPlaceHoldsCustom | Sort-Object | Export-Csv -Path (Join-Path -Path $OutputDirectory -ChildPath 'inPlaceHolds.csv') -Encoding utf8 -NoTypeInformation -Append
+                        [PSCustomObject]$inPlaceHoldsCustom | Sort-Object | Export-Csv -Path (Join-Path -Path $OutputDirectory -ChildPath "-$random-inPlaceHolds.csv") -Encoding utf8 -NoTypeInformation -Append
                     }
                 }
                 catch {
@@ -281,7 +282,8 @@ function Get-CompliancePolicyCount {
     end {
         Write-Verbose "Reverting ErrorActionPreference of 'Stop' to $savedErrorActionPreference"
         $ErrorActionPreference = $savedErrorActionPreference
-        if ($orgSettings.Name) { Write-Output "Compliance policy evaluation of $($orgSettings.Name) completed!" }
+        if($failedConnection){ "CONNECTION FAILIRE! Unable to connect to Exchange or the Security and Compliance endpoint. Please check the logs for more information" }
+        elseif ($orgSettings.Name) { Write-Output "Compliance policy evaluation of $($orgSettings.Name) completed!" }
         else { Write-Output "Compliance policy evaluation completed!" }
     }
 }
