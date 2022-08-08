@@ -199,7 +199,7 @@ function Get-CompliancePolicyCount {
                 }
             }
             else {
-                $null = $advancedEDiscoveryCases.Add("No advanced eDiscovery cases found")
+                $null = $advancedEDiscoveryCasesList.Add("No advanced eDiscovery cases found")
             }
 
             Write-Verbose "Querying $($orgSettings.Name)'s retention label policies"
@@ -250,10 +250,10 @@ function Get-CompliancePolicyCount {
             if ($parameters.ContainsKey('SaveResults')) {
                 try {
                     Write-Output "Saving $($orgSettings.Name)'s compliance policy data to: $OutputDirectory"
-                    [PSCustomObject]$retentionPolicyList | Sort-Object | Export-Csv -Path (Join-Path -Path $OutputDirectory -ChildPath "RetentionPolicyList-$random-.csv") -Encoding utf8 -NoTypeInformation
-                    [PSCustomObject]$standardDiscoveryPolicies | Sort-Object | Export-Csv -Path (Join-Path -Path $OutputDirectory -ChildPath "StandardDiscoveryPolicies-$random-.csv") -Encoding utf8 -NoTypeInformation
-                    [PSCustomObject]$advancedDiscoveryPolicies | Sort-Object | Export-Csv -Path (Join-Path -Path $OutputDirectory -ChildPath "AdvancedDiscoveryPolicies-$random-.csv") -Encoding utf8 -NoTypeInformation
-                    [PSCustomObject]$advancedEDiscoveryCaseMembers | Sort-Object | Export-Csv -Path (Join-Path -Path $OutputDirectory -ChildPath "advancedEDiscoveryCaseMembers-$random-.csv") -Encoding utf8 -NoTypeInformation
+                    [PSCustomObject]$retentionPolicyList | Sort-Object | Export-Csv -Path (Join-Path -Path $OutputDirectory -ChildPath "RetentionPolicyList-$random.csv") -Encoding utf8 -NoTypeInformation
+                    [PSCustomObject]$standardDiscoveryPolicyList | Sort-Object | Export-Csv -Path (Join-Path -Path $OutputDirectory -ChildPath "StandardDiscoveryPolicies-$random.csv") -Encoding utf8 -NoTypeInformation
+                    [PSCustomObject]$advancedDiscoveryPolicyList | Sort-Object | Export-Csv -Path (Join-Path -Path $OutputDirectory -ChildPath "AdvancedDiscoveryPolicies-$random.csv") -Encoding utf8 -NoTypeInformation
+                    [PSCustomObject]$advancedDiscoveryPolicyMemberList | Sort-Object | Export-Csv -Path (Join-Path -Path $OutputDirectory -ChildPath "AdvancedEDiscoveryCaseMembers-$random.csv") -Encoding utf8 -NoTypeInformation
 
                     foreach ($hold in $inPlaceHoldsList) {
                         $holdResults = (($hold -split '(mbx|grp|skp|:|cld|UniH)') -match '\S')
@@ -279,7 +279,7 @@ function Get-CompliancePolicyCount {
                             RetentionAction            = $holdResults[3]
                             RetentionActionDescription = $retentionActionValueDescription
                         }
-                        [PSCustomObject]$inPlaceHoldsCustom | Sort-Object | Export-Csv -Path (Join-Path -Path $OutputDirectory -ChildPath "inPlaceHolds-$random-.csv") -Encoding utf8 -NoTypeInformation -Append
+                        [PSCustomObject]$inPlaceHoldsCustom | Sort-Object | Export-Csv -Path (Join-Path -Path $OutputDirectory -ChildPath "InPlaceHolds-$random.csv") -Encoding utf8 -NoTypeInformation -Append
                     }
                 }
                 catch {
