@@ -78,6 +78,7 @@ function Get-CompliancePolicyCount {
         [System.Collections.ArrayList] $retentionPolicyList = @()
         [System.Collections.ArrayList] $standardDiscoveryPolicyList = @()
         [System.Collections.ArrayList] $advancedDiscoveryPolicyList = @()
+        [System.Collections.ArrayList] $advancedDiscoveryPolicyMemberList = @()
 
         try {
             if ($parameters.ContainsKey('EnableDebugLogging')) {
@@ -167,7 +168,7 @@ function Get-CompliancePolicyCount {
                 }
             }
             else {
-                $standardDiscoveryCases = "No standard eDiscovery cases found"
+                $null = $standardDiscoveryPolicyList.Add("No standard eDiscovery cases found")
             }
 
             Write-Verbose "Querying $($orgSettings.Name)'s advanced eDiscovery Cases"
@@ -178,15 +179,27 @@ function Get-CompliancePolicyCount {
                     # Case hold policies in the Microsoft Purview compliance center
                     #Get-CaseHoldPolicy -Case $advancedCase.Name
                     $null = $advancedDiscoveryPolicyList.Add($advancedCase)
-                    if (Get-ComplianceCaseMember -Case $advancedCase.Name) {
+                    if ($caseMember = Get-ComplianceCaseMember -Case $advancedCase.Name) {
                         $policyCounter ++
-                        # TODO: Why your other users weren't detected
-                        # TODO: Do we need to account for sharepoint and other locations as policies
+
+                        $caseMember = [PSCustomObject]@{
+                            Alias                     = $caseMember.Alias
+                            ArchiveGuid               = $caseMember.ArchiveGuid
+                            ExternalDirectoryObjectId = $caseMember.ExternalDirectoryObjectId
+                            DisplayName               = $caseMember.DisplayName
+                            Guid                      = $caseMember.Guid
+                            RecipientType             = $caseMember.RecipientType
+                            WhenChanged               = $caseMember.WhenChanged
+                        }
+                        $null = $advancedDiscoveryPolicyMemberList.Add($caseMember)
+                    }
+                    else {
+                        $null = $advancedDiscoveryPolicyMemberList.Add("No advanced eDiscovery case members found")
                     }
                 }
             }
             else {
-                $advancedEDiscoveryCases = "No advanced eDiscovery cases found"
+                $null = $advancedEDiscoveryCases.Add("No advanced eDiscovery cases found")
             }
 
             Write-Verbose "Querying $($orgSettings.Name)'s retention label policies"
@@ -237,9 +250,10 @@ function Get-CompliancePolicyCount {
             if ($parameters.ContainsKey('SaveResults')) {
                 try {
                     Write-Output "Saving $($orgSettings.Name)'s compliance policy data to: $OutputDirectory"
-                    [PSCustomObject]$retentionPolicyList | Sort-Object | Export-Csv -Path (Join-Path -Path $OutputDirectory -ChildPath "-$random-RetentionPolicyList.csv") -Encoding utf8 -NoTypeInformation
-                    [PSCustomObject]$standardDiscoveryPolicies | Sort-Object | Export-Csv -Path (Join-Path -Path $OutputDirectory -ChildPath "-$random-StandardDiscoveryPolicies.csv") -Encoding utf8 -NoTypeInformation
-                    [PSCustomObject]$advancedDiscoveryPolicies | Sort-Object | Export-Csv -Path (Join-Path -Path $OutputDirectory -ChildPath "-$random-AdvancedDiscoveryPolicies.csv") -Encoding utf8 -NoTypeInformation
+                    [PSCustomObject]$retentionPolicyList | Sort-Object | Export-Csv -Path (Join-Path -Path $OutputDirectory -ChildPath "RetentionPolicyList-$random-.csv") -Encoding utf8 -NoTypeInformation
+                    [PSCustomObject]$standardDiscoveryPolicies | Sort-Object | Export-Csv -Path (Join-Path -Path $OutputDirectory -ChildPath "StandardDiscoveryPolicies-$random-.csv") -Encoding utf8 -NoTypeInformation
+                    [PSCustomObject]$advancedDiscoveryPolicies | Sort-Object | Export-Csv -Path (Join-Path -Path $OutputDirectory -ChildPath "AdvancedDiscoveryPolicies-$random-.csv") -Encoding utf8 -NoTypeInformation
+                    [PSCustomObject]$advancedEDiscoveryCaseMembers | Sort-Object | Export-Csv -Path (Join-Path -Path $OutputDirectory -ChildPath "advancedEDiscoveryCaseMembers-$random-.csv") -Encoding utf8 -NoTypeInformation
 
                     foreach ($hold in $inPlaceHoldsList) {
                         $holdResults = (($hold -split '(mbx|grp|skp|:|cld|UniH)') -match '\S')
@@ -265,7 +279,7 @@ function Get-CompliancePolicyCount {
                             RetentionAction            = $holdResults[3]
                             RetentionActionDescription = $retentionActionValueDescription
                         }
-                        [PSCustomObject]$inPlaceHoldsCustom | Sort-Object | Export-Csv -Path (Join-Path -Path $OutputDirectory -ChildPath "-$random-inPlaceHolds.csv") -Encoding utf8 -NoTypeInformation -Append
+                        [PSCustomObject]$inPlaceHoldsCustom | Sort-Object | Export-Csv -Path (Join-Path -Path $OutputDirectory -ChildPath "inPlaceHolds-$random-.csv") -Encoding utf8 -NoTypeInformation -Append
                     }
                 }
                 catch {
@@ -282,7 +296,7 @@ function Get-CompliancePolicyCount {
     end {
         Write-Verbose "Reverting ErrorActionPreference of 'Stop' to $savedErrorActionPreference"
         $ErrorActionPreference = $savedErrorActionPreference
-        if($failedConnection){ "CONNECTION FAILIRE! Unable to connect to Exchange or the Security and Compliance endpoint. Please check the logs for more information" }
+        if ($failedConnection) { "CONNECTION FAILURE! Unable to connect to Exchange or the Security and Compliance endpoint. Please check the logs for more information" }
         elseif ($orgSettings.Name) { Write-Output "Compliance policy evaluation of $($orgSettings.Name) completed!" }
         else { Write-Output "Compliance policy evaluation completed!" }
     }
