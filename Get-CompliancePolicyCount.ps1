@@ -78,6 +78,7 @@ function Get-CompliancePolicyCount {
         [System.Collections.ArrayList] $retentionPolicyList = @()
         [System.Collections.ArrayList] $standardDiscoveryPolicyList = @()
         [System.Collections.ArrayList] $advancedDiscoveryPolicyList = @()
+        [System.Collections.ArrayList] $standardDiscoveryPolicyMemberList = @()
         [System.Collections.ArrayList] $advancedDiscoveryPolicyMemberList = @()
 
         try {
@@ -162,13 +163,31 @@ function Get-CompliancePolicyCount {
                     $policyCounter ++
                     $null = $standardDiscoveryPolicyList.Add($standardCase)
                     #Get-CaseHoldPolicy -Case $standardCase.Name
-                    if (Get-ComplianceCaseMember -Case $standardCase.Name) {
+                    if ($caseMember = Get-ComplianceCaseMember -Case $standardCase.Name) {
                         $policyCounter ++
+
+                        $caseMember = [PSCustomObject]@{
+                            'Case Name'               = $standardCase.Name
+                            'Case Identity'           = $standardCase.Identity
+                            'Case Status'             = $standardCase.CaseStatus
+                            'Case Type'               = $standardCase.CaseType
+                            'Member Alias'            = $caseMember.Alias
+                            'Member Display Name'     = $caseMember.DisplayName
+                            ArchiveGuid               = $caseMember.ArchiveGuid
+                            ExternalDirectoryObjectId = $caseMember.ExternalDirectoryObjectId
+                            Guid                      = $caseMember.Guid
+                            RecipientType             = $caseMember.RecipientType
+                            WhenChanged               = $caseMember.WhenChanged
+                        }
+                        $null = $standardDiscoveryPolicyMemberList.Add($caseMember)
+                    }
+                    else {
+                        $null = $advancedDiscoveryPolicyMemberList.Add("No standard eDiscovery case members found!")
                     }
                 }
             }
             else {
-                $null = $standardDiscoveryPolicyList.Add("No standard eDiscovery cases found")
+                $null = $standardDiscoveryPolicyList.Add("No standard eDiscovery cases found!")
             }
 
             Write-Verbose "Querying $($orgSettings.Name)'s advanced eDiscovery Cases"
@@ -183,10 +202,14 @@ function Get-CompliancePolicyCount {
                         $policyCounter ++
 
                         $caseMember = [PSCustomObject]@{
-                            Alias                     = $caseMember.Alias
+                            'Case Name'               = $advancedCase.Name
+                            'Case Identity'           = $advancedCase.Identity
+                            'Case Status'             = $advancedCase.CaseStatus
+                            'Case Type'               = $advancedCase.CaseType
+                            'Member Alias'            = $caseMember.Alias
+                            'Member Display Name'     = $caseMember.DisplayName
                             ArchiveGuid               = $caseMember.ArchiveGuid
                             ExternalDirectoryObjectId = $caseMember.ExternalDirectoryObjectId
-                            DisplayName               = $caseMember.DisplayName
                             Guid                      = $caseMember.Guid
                             RecipientType             = $caseMember.RecipientType
                             WhenChanged               = $caseMember.WhenChanged
@@ -194,12 +217,12 @@ function Get-CompliancePolicyCount {
                         $null = $advancedDiscoveryPolicyMemberList.Add($caseMember)
                     }
                     else {
-                        $null = $advancedDiscoveryPolicyMemberList.Add("No advanced eDiscovery case members found")
+                        $null = $advancedDiscoveryPolicyMemberList.Add("No advanced eDiscovery case members found!")
                     }
                 }
             }
             else {
-                $null = $advancedEDiscoveryCasesList.Add("No advanced eDiscovery cases found")
+                $null = $advancedEDiscoveryCasesList.Add("No advanced eDiscovery cases found!")
             }
 
             Write-Verbose "Querying $($orgSettings.Name)'s retention label policies"
@@ -251,9 +274,10 @@ function Get-CompliancePolicyCount {
                 try {
                     Write-Output "Saving $($orgSettings.Name)'s compliance policy data to: $OutputDirectory"
                     [PSCustomObject]$retentionPolicyList | Sort-Object | Export-Csv -Path (Join-Path -Path $OutputDirectory -ChildPath "RetentionPolicyList-$random.csv") -Encoding utf8 -NoTypeInformation
-                    [PSCustomObject]$standardDiscoveryPolicyList | Sort-Object | Export-Csv -Path (Join-Path -Path $OutputDirectory -ChildPath "StandardDiscoveryPolicies-$random.csv") -Encoding utf8 -NoTypeInformation
-                    [PSCustomObject]$advancedDiscoveryPolicyList | Sort-Object | Export-Csv -Path (Join-Path -Path $OutputDirectory -ChildPath "AdvancedDiscoveryPolicies-$random.csv") -Encoding utf8 -NoTypeInformation
-                    [PSCustomObject]$advancedDiscoveryPolicyMemberList | Sort-Object | Export-Csv -Path (Join-Path -Path $OutputDirectory -ChildPath "AdvancedEDiscoveryCaseMembers-$random.csv") -Encoding utf8 -NoTypeInformation
+                    [PSCustomObject]$standardDiscoveryPolicyList | Sort-Object | Export-Csv -Path (Join-Path -Path $OutputDirectory -ChildPath "StandardEDiscoveryPolicyList-$random.csv") -Encoding utf8 -NoTypeInformation
+                    [PSCustomObject]$standardDiscoveryPolicyMemberList | Sort-Object | Export-Csv -Path (Join-Path -Path $OutputDirectory -ChildPath "StandardEDiscoveryPolicyMemberList-$random.csv") -Encoding utf8 -NoTypeInformation
+                    [PSCustomObject]$advancedDiscoveryPolicyList | Sort-Object | Export-Csv -Path (Join-Path -Path $OutputDirectory -ChildPath "AdvancedEDiscoveryPolicyList-$random.csv") -Encoding utf8 -NoTypeInformation
+                    [PSCustomObject]$advancedDiscoveryPolicyMemberList | Sort-Object | Export-Csv -Path (Join-Path -Path $OutputDirectory -ChildPath "AdvancedEDiscoveryCaseMemberList-$random.csv") -Encoding utf8 -NoTypeInformation
 
                     foreach ($hold in $inPlaceHoldsList) {
                         $holdResults = (($hold -split '(mbx|grp|skp|:|cld|UniH)') -match '\S')
