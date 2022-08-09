@@ -202,8 +202,8 @@ function Get-CompliancePolicyCount {
 
         try {
             Write-Verbose "Querying Organization Configuration - In-place Hold Policies"
-            $orgSettings = Get-OrganizationConfig | Select-Object Name, InPlaceHolds, GUID
-            if ($orgSettings.Count -ge 1) {
+            
+            if (($orgSettings = Get-OrganizationConfig | Select-Object Name, InPlaceHolds, GUID).Count -ge 1) {
                 $progressCounter = 1
                 foreach ($inPlaceHold in $orgSettings.InPlaceHolds) {
                     $policyCounter ++
@@ -218,8 +218,7 @@ function Get-CompliancePolicyCount {
 
             # Retention policies in the Microsoft Purview compliance center
             Write-Verbose "Querying $($orgSettings.Name)'s retention polices"
-            $retentionPolicies = Get-RetentionCompliancePolicy
-            if ($retentionPolicies.Count -ge 1) {
+            if (($retentionPolicies = Get-RetentionCompliancePolicy).Count -ge 1) {
                 $progressCounter = 1
                 foreach ($retentionPolicy in $retentionPolicies) {
                     $policyCounter ++
@@ -234,8 +233,7 @@ function Get-CompliancePolicyCount {
 
             # Data loss prevention (DLP) policies in the Microsoft Purview compliance center
             Write-Verbose "Querying $($orgSettings.Name)'s DLP Policies"
-            $dlpPolicies = Get-DlpCompliancePolicy
-            if ($dlpPolicies.Count -ge 1) {
+            if (($dlpPolicies = Get-DlpCompliancePolicy).Count -ge 1) {
                 $progressCounter = 1
                 foreach ($dlpPolicy in $dlpPolicies) {
                     $policyCounter ++
@@ -251,7 +249,7 @@ function Get-CompliancePolicyCount {
             # eDiscovery Standard cases in the Microsoft Purview compliance center
             Write-Verbose "Querying $($orgSettings.Name)'s standard eDiscovery cases"
             $standardDiscoveryCases = Get-ComplianceCase
-            if ($standardDiscoveryCases.Count -ge 1) {
+            if (($standardDiscoveryCases = Get-ComplianceCase).Count -ge 1) {
                 $progressCounter = 1
                 foreach ($standardCase in $standardDiscoveryCases) {
                     $policyCounter ++
@@ -260,22 +258,24 @@ function Get-CompliancePolicyCount {
                     $null = $standardDiscoveryPolicyList.Add($standardCase)
 
                     Write-Verbose "Querying $($orgSettings.Name)'s standard eDiscovery case custodians"
-                    if ($caseMember = Get-ComplianceCaseMember -Case $standardCase.Name) {
-                        $policyCounter ++
+                    if (($caseMembers = Get-ComplianceCaseMember -Case $standardCase.Name).Count -ge 1) {
+                        foreach($caseMember in $caseMembers){
+                            $policyCounter ++
 
-                        $caseMember = [PSCustomObject]@{
-                            'Case Name'               = $standardCase.Name
-                            'Case Identity'           = $standardCase.Identity
-                            'Case Status'             = $standardCase.CaseStatus
-                            'Case Type'               = $standardCase.CaseType
-                            'Custodian on Hold'       = $caseMember.DisplayName
-                            ArchiveGuid               = $caseMember.ArchiveGuid
-                            ExternalDirectoryObjectId = $caseMember.ExternalDirectoryObjectId
-                            Guid                      = $caseMember.Guid
-                            RecipientType             = $caseMember.RecipientType
-                            WhenChanged               = $caseMember.WhenChanged
+                            $caseMember = [PSCustomObject]@{
+                                'Case Name'               = $standardCase.Name
+                                'Case Identity'           = $standardCase.Identity
+                                'Case Status'             = $standardCase.CaseStatus
+                                'Case Type'               = $standardCase.CaseType
+                                'Custodian on Hold'       = $caseMember.DisplayName
+                                ArchiveGuid               = $caseMember.ArchiveGuid
+                                ExternalDirectoryObjectId = $caseMember.ExternalDirectoryObjectId
+                                Guid                      = $caseMember.Guid
+                                RecipientType             = $caseMember.RecipientType
+                                WhenChanged               = $caseMember.WhenChanged
+                            }
+                            $null = $standardDiscoveryPolicyMemberList.Add($caseMember)
                         }
-                        $null = $standardDiscoveryPolicyMemberList.Add($caseMember)
                     }
                     else {
                         $null = $advancedDiscoveryPolicyMemberList.Add("No standard eDiscovery case members found!")
@@ -288,8 +288,7 @@ function Get-CompliancePolicyCount {
 
             # eDiscovery Advanced cases in the Microsoft Purview compliance center
             Write-Verbose "Querying $($orgSettings.Name)'s advanced eDiscovery Cases"
-            $advancedEDiscoveryCases = Get-ComplianceCase -CaseType Advanced
-            if ($advancedEDiscoveryCases.Count -ge 1) {
+            if (($advancedEDiscoveryCases = Get-ComplianceCase -CaseType Advanced).Count -ge 1) {
                 $progressCounter = 1
                 foreach ($advancedCase in $advancedEDiscoveryCases) {
                     $policyCounter ++
@@ -326,8 +325,7 @@ function Get-CompliancePolicyCount {
 
             # (DLP) policies in the Microsoft Purview compliance portal.
             Write-Verbose "Querying $($orgSettings.Name)'s retention label policies"
-            $retentionLabels = Get-DlpCompliancePolicy
-            if ($retentionLabels.Count -ge 1) { Write-Verbose "Retention labels found: $($retentionLabels.count)" }
+            if (($retentionLabels = Get-DlpCompliancePolicy).Count -ge 1) { Write-Verbose "Retention labels found: $($retentionLabels.count)" }
             else { $retentionLabels = "No retention labels found" }
 
             if ($policyCounter -ge $maximumPolicyCount) {
