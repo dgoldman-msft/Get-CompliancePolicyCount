@@ -1,3 +1,61 @@
+function LogToFile {
+    <#
+    .SYNOPSIS
+        Log to file
+
+    .DESCRIPTION
+        Log data to disk
+
+    .PARAMETER DataToLog
+        Object to log to disk
+
+    .PARAMETER FileType
+        Type of file we are outputting
+
+    .PARAMETER OutputDirectory
+        Directory to write data
+
+    .PARAMETER Outputfile
+        Log file name
+
+    .EXAMPLE
+        None
+    #>
+
+    [CmdletBinding(DefaultParameterSetName = 'Default')]
+    param(
+        [PSCustomObject]
+        $DataToLog,
+
+        [string]
+        $FileType,
+
+        [Parameter(Position = 0)]
+        [string]
+        $OutputDirectory,
+
+        [Parameter(Position = 1)]
+        [string]
+        $Outputfile
+    )
+
+    try {
+        switch ($FileType) {
+            'txt' {
+                $DataToLog | Out-File -FilePath (Join-Path -Path $OutputDirectory -ChildPath $Outputfile) -Encoding utf8
+            }
+
+            'csv' {
+                [PSCustomObject]$DataToLog | Sort-Object | Export-Csv -Path (Join-Path -Path $OutputDirectory -ChildPath $Outputfile) -Encoding utf8 -NoTypeInformation -Append -ErrorAction Stop
+            }
+        }
+    }
+    catch {
+        $_
+        return
+    }
+}
+
 function Get-CompliancePolicyCount {
     <#
 	.SYNOPSIS
@@ -267,7 +325,7 @@ function Get-CompliancePolicyCount {
             else { $retentionLabels = "No retention labels found" }
 
             if ($policyCounter -ge $maximumPolicyCount) {
-                $output = "WARNING: The $($orgSettings.Name) tenant has $policyCounter compliance policies.. This exceeds the $maximumPolicyCount policies limit"
+                $output = "WARNING: The $($orgSettings.Name) tenant has $policyCounter compliance policies! This exceeds the $maximumPolicyCount policies limit"
                 Write-Output $output
             }
             else {
@@ -297,8 +355,7 @@ function Get-CompliancePolicyCount {
 
             # Save policy count
             try {
-                $policyCountLogFile = $env:COMPUTERNAME + "-$random-PolicyCount.txt"
-                $output | Out-File -FilePath (Join-Path -Path $OutputDirectory -ChildPath $policyCountLogFile) -Encoding utf8
+                LogToFile -DataToLog $output -OutputDirectory $OutputDirectory -Outputfile "TotalPolicyCount.txt" -FileType 'txt'
                 Write-Output "Saving policy count data to: $OutputDirectory\$policyCountLogFile"
             }
             catch {
@@ -309,12 +366,12 @@ function Get-CompliancePolicyCount {
             if ($parameters.ContainsKey('SaveResults')) {
                 try {
                     Write-Output "Saving $($orgSettings.Name)'s compliance policy data to: $OutputDirectory"
-                    [PSCustomObject]$dlpPolicyList | Sort-Object | Export-Csv -Path (Join-Path -Path $OutputDirectory -ChildPath "DlpPolicyList-$random.csv") -Encoding utf8 -NoTypeInformation
-                    [PSCustomObject]$retentionPolicyList | Sort-Object | Export-Csv -Path (Join-Path -Path $OutputDirectory -ChildPath "RetentionPolicyList-$random.csv") -Encoding utf8 -NoTypeInformation
-                    [PSCustomObject]$standardDiscoveryPolicyList | Sort-Object | Export-Csv -Path (Join-Path -Path $OutputDirectory -ChildPath "StandardEDiscoveryPolicyList-$random.csv") -Encoding utf8 -NoTypeInformation
-                    [PSCustomObject]$standardDiscoveryPolicyMemberList | Sort-Object | Export-Csv -Path (Join-Path -Path $OutputDirectory -ChildPath "StandardEDiscoveryPolicyMemberList-$random.csv") -Encoding utf8 -NoTypeInformation
-                    [PSCustomObject]$advancedDiscoveryPolicyList | Sort-Object | Export-Csv -Path (Join-Path -Path $OutputDirectory -ChildPath "AdvancedEDiscoveryPolicyList-$random.csv") -Encoding utf8 -NoTypeInformation
-                    [PSCustomObject]$advancedDiscoveryPolicyMemberList | Sort-Object | Export-Csv -Path (Join-Path -Path $OutputDirectory -ChildPath "AdvancedEDiscoveryCaseMemberList-$random.csv") -Encoding utf8 -NoTypeInformation
+                    LogToFile -DataToLog $dlpPolicyList -OutputDirectory $OutputDirectory -OutputFile "DlpPolicyList-$random.csv" -FileType 'csv'
+                    LogToFile -DataToLog $retentionPolicyList -OutputDirectory $OutputDirectory -OutputFile "RetentionPolicyList-$random.csv" -FileType 'csv'
+                    LogToFile -DataToLog $standardDiscoveryPolicyList -OutputDirectory $OutputDirectory -OutputFile "Standard-eDiscoveryPolicyList-$random.csv" -FileType 'csv'
+                    LogToFile -DataToLog $standardDiscoveryPolicyMemberList -OutputDirectory $OutputDirectory -OutputFile "Standard-eDiscoveryPolicyMemberList-$random.csv" -FileType 'csv'
+                    LogToFile -DataToLog $advancedDiscoveryPolicyList -OutputDirectory $OutputDirectory -OutputFile "Advanced-eDiscoveryPolicyList-$random.csv" -FileType 'csv'
+                    LogToFile -DataToLog $advancedDiscoveryPolicyMemberList -OutputDirectory $OutputDirectory -OutputFile "Advanced-eDiscoveryCaseMemberList-$random.csv" -FileType 'csv'
 
                     foreach ($hold in $inPlaceHoldsList) {
                         $holdResults = (($hold -split '(mbx|grp|skp|:|cld|UniH)') -match '\S')
@@ -340,7 +397,7 @@ function Get-CompliancePolicyCount {
                             RetentionAction            = $holdResults[3]
                             RetentionActionDescription = $retentionActionValueDescription
                         }
-                        [PSCustomObject]$inPlaceHoldsCustom | Sort-Object | Export-Csv -Path (Join-Path -Path $OutputDirectory -ChildPath "InPlaceHolds-$random.csv") -Encoding utf8 -NoTypeInformation -Append
+                        LogToFile -DataToLog $inPlaceHoldsCustom -OutputDirectory $OutputDirectory -OutputFile "InPlaceHolds-$random.csv" -FileType 'csv'
                     }
                 }
                 catch {
@@ -359,7 +416,7 @@ function Get-CompliancePolicyCount {
         $ErrorActionPreference = $savedErrorActionPreference
         if ($failedConnection) {
             "CONNECTION FAILURE! Unable to connect to Exchange or the Security and Compliance endpoint. Please check the connection log for more information"
-            $connectionErrors | Out-File -FilePath (Join-Path -Path $OutputDirectory -ChildPath "ConnectionLog-$random.log") -Encoding utf8
+            LogToFile -DataToLog $connectionErrors -OutputDirectory $OutputDirectory -OutputFile "ConnectionLog-$random.log" -FileType 'txt'
         }
         elseif ($orgSettings.Name) { Write-Output "Compliance policy evaluation of $($orgSettings.Name) completed!" }
         else { Write-Output "Compliance policy evaluation completed!" }
