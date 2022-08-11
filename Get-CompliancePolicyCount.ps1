@@ -148,7 +148,7 @@ function Get-CompliancePolicyCount {
             }
         }
         catch {
-            Write-Output "ERROR: $_"
+            Write-Output "DEBUG LOGGING ERROR: $_"
         }
 
         Write-Verbose "Saving current ErrorActionPreference of $savedErrorActionPreference and changing to 'Stop'"
@@ -171,7 +171,7 @@ function Get-CompliancePolicyCount {
             }
         }
         catch {
-            Write-Output "ERROR: $_"
+            Write-Output "POWERSHELL MODULE ERROR: $_"
             return
         }
 
@@ -183,7 +183,7 @@ function Get-CompliancePolicyCount {
             }
         }
         catch {
-            Write-Output "ERROR: $_"
+            Write-Output "TEMP DIRECTORY ERROR: $_"
             return
         }
 
@@ -195,7 +195,7 @@ function Get-CompliancePolicyCount {
             }
         }
         catch {
-            Write-Output "ERROR: $_"
+            Write-Output "ARCHIVING ERROR: $_"
             return
         }
     }
@@ -253,7 +253,7 @@ function Get-CompliancePolicyCount {
                 }
             }
             else {
-                $null = $advancedEDiscoveryCasesList.Add("No DLP policies found!")
+                $null = $advancedEDiscoveryList.Add("No DLP policies found!")
             }
 
             # eDiscovery Standard cases in the Microsoft Purview compliance center
@@ -287,7 +287,7 @@ function Get-CompliancePolicyCount {
                         }
                     }
                     else {
-                        $null = $advancedDiscoveryPolicyMemberList.Add("No standard eDiscovery case members found!")
+                        $null = $advancedDiscoveryPolicyMemberList.Add("No standard eDiscovery custodians found!")
                     }
                 }
             }
@@ -329,18 +329,17 @@ function Get-CompliancePolicyCount {
                 }
             }
             else {
-                $null = $advancedEDiscoveryCasesList.Add("No advanced eDiscovery cases found!")
+                $null = $advancedDiscoveryPolicyList.Add("No advanced eDiscovery cases found!")
             }
 
             # (DLP) policies in the Microsoft Purview compliance portal.
             Write-Verbose "Querying $($orgSettings.Name)'s retention label policies"
             if (($retentionLabels = Get-DlpCompliancePolicy).Count -ge 1) { Write-Verbose "Retention labels found: $($retentionLabels.count)" }
-            else { $retentionLabels = "No retention labels found" }
+            else { $null = $retentionPolicyList.Add("No retention labels found") }
 
             try {
                 Write-Output "Preforming session cleanup to: $($orgSettings.Name)"
-                $sessions = Get-PSSession
-                foreach ($session in $sessions) {
+                foreach ($session in Get-PSSession) {
                     if ($session.ComputerName -like '*compliance*' -or $session.ComputerName -eq 'outlook.office365.com') {
                         Write-Verbose "Removing session: $session.ComputerName"
                         Remove-PSSession $session
@@ -348,7 +347,7 @@ function Get-CompliancePolicyCount {
                 }
             }
             catch {
-                Write-Output "ERROR: $_"
+                Write-Output "SESSION CLEANUP ERROR: $_"
                 return
             }
 
@@ -397,7 +396,7 @@ function Get-CompliancePolicyCount {
                     }
                 }
                 catch {
-                    Write-Output "ERROR: $_"
+                    Write-Output "SAVING RESULTS ERROR: $_"
                     return
                 }
             }
