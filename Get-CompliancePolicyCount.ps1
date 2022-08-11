@@ -256,7 +256,7 @@ function Get-CompliancePolicyCount {
 
                     Write-Verbose "Querying $($orgSettings.Name)'s standard eDiscovery case custodians"
                     if (($caseMembers = Get-ComplianceCaseMember -Case $standardCase.Name).Count -ge 1) {
-                        foreach($caseMember in $caseMembers){
+                        foreach ($caseMember in $caseMembers) {
                             $policyCounter ++
 
                             $caseMember = [PSCustomObject]@{
@@ -325,15 +325,6 @@ function Get-CompliancePolicyCount {
             if (($retentionLabels = Get-DlpCompliancePolicy).Count -ge 1) { Write-Verbose "Retention labels found: $($retentionLabels.count)" }
             else { $retentionLabels = "No retention labels found" }
 
-            if ($policyCounter -ge $maximumPolicyCount) {
-                $output = "WARNING: The $($orgSettings.Name) tenant has $policyCounter compliance policies! This exceeds the $maximumPolicyCount policies limit"
-                Write-Output $output
-            }
-            else {
-                $output = "The $($orgSettings.Name) tenant has $policyCounter compliance policies and is under the maximum number of $maximumPolicyCount"
-                Write-Output $output
-            }
-
             try {
                 Write-Output "Preforming session cleanup to: $($orgSettings.Name)"
                 $sessions = Get-PSSession
@@ -352,16 +343,6 @@ function Get-CompliancePolicyCount {
             if ($parameters.ContainsKey('EnableDebugLogging')) {
                 Write-Verbose "Stopping debug logging"
                 Stop-Transcript
-            }
-
-            # Save policy count
-            try {
-                LogToFile -DataToLog $output -OutputDirectory $OutputDirectory -Outputfile "TotalPolicyCount.txt" -FileType 'txt'
-                Write-Output "Saving policy count data to: $OutputDirectory\$policyCountLogFile"
-            }
-            catch {
-                Write-Output "ERROR: $_"
-                return
             }
 
             if ($parameters.ContainsKey('SaveResults')) {
@@ -399,6 +380,8 @@ function Get-CompliancePolicyCount {
                             RetentionActionDescription = $retentionActionValueDescription
                         }
                         LogToFile -DataToLog $inPlaceHoldsCustom -OutputDirectory $OutputDirectory -OutputFile "InPlaceHolds-$random.csv" -FileType 'csv'
+                        LogToFile -DataToLog $output -OutputDirectory $OutputDirectory -Outputfile "TotalPolicyCount.txt" -FileType 'txt'
+                        Write-Output "Saving policy count data to: $OutputDirectory\$policyCountLogFile"
                     }
                 }
                 catch {
@@ -421,5 +404,14 @@ function Get-CompliancePolicyCount {
         }
         elseif ($orgSettings.Name) { Write-Output "Compliance policy evaluation of $($orgSettings.Name) completed!" }
         else { Write-Output "Compliance policy evaluation completed!" }
+
+        if ($policyCounter -ge $maximumPolicyCount) {
+            $output = "The $($orgSettings.Name) tenant has $policyCounter compliance policies! This exceeds the $maximumPolicyCount policies limit - ERROR! (OVER LIMIT)"
+            Write-Output $output
+        }
+        else {
+            $output = "The $($orgSettings.Name) tenant has $policyCounter compliance policies and is under the maximum number of $maximumPolicyCount - OK (UNDER LIMIT)"
+            Write-Output $output
+        }
     }
 }
