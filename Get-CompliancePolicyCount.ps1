@@ -202,7 +202,7 @@ function Get-CompliancePolicyCount {
 
         try {
             Write-Verbose "Querying Organization Configuration - In-place Hold Policies"
-            if (($orgSettings = Get-OrganizationConfig | Select-Object Name, InPlaceHolds, GUID).Count -ge 1) {
+            if (($orgSettings = Get-OrganizationConfig | Select-Object Name, InPlaceHolds, GUID).InPlaceHolds.Count -ge 1) {
                 foreach ($inPlaceHold in $orgSettings.InPlaceHolds) {
                     $policyCounter ++
                     Write-Progress -Activity "Querying Organization Configuration - In-place Hold Policies" -Status "Querying policy #: $progressCounter" -PercentComplete ($progressCounter / $orgSettings.InPlaceHolds.count * 100)
