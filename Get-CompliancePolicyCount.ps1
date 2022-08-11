@@ -119,7 +119,7 @@ function Get-CompliancePolicyCount {
         $SaveResults,
 
         [string]
-        $TranscriptFile = "Transcript.log",
+        $TranscriptFile = "Transcript.txt",
 
         [string]
         $UserPrincipalName = 'admin@tenant.onmicrosoft.com'
@@ -180,6 +180,18 @@ function Get-CompliancePolicyCount {
             if (-NOT(Test-Path -Path $OutputDirectory)) {
                 $null = New-Item -Path $OutputDirectory -ItemType Directory
                 Write-Verbose "Created new directory: $($OutputDirectory)"
+            }
+        }
+        catch {
+            Write-Output "ERROR: $_"
+            return
+        }
+
+        try {
+            if (Get-ChildItem -Path $OutputDirectory) {
+                Compress-Archive -Path $OutputDirectory -DestinationPath "$OutputDirectory\OldFiles-Archive.$(get-date -f yyyy-MM-dd).zip" -Force -CompressionLevel Fastest
+                Write-Verbose "Cleaning up and compressing old files for archive"
+                Remove-Item -Path $OutputDirectory\"*.*" -Exclude "*.zip"
             }
         }
         catch {
@@ -400,7 +412,7 @@ function Get-CompliancePolicyCount {
         $ErrorActionPreference = $savedErrorActionPreference
         if ($failedConnection) {
             "CONNECTION FAILURE! Unable to connect to Exchange or the Security and Compliance endpoint. Please check the connection log for more information"
-            LogToFile -DataToLog $connectionErrors -OutputDirectory $OutputDirectory -OutputFile "ConnectionLog-$random.log" -FileType 'txt'
+            LogToFile -DataToLog $connectionErrors -OutputDirectory $OutputDirectory -OutputFile "ConnectionLog-$random.txt" -FileType 'txt'
         }
         elseif ($orgSettings.Name) { Write-Output "Compliance policy evaluation of $($orgSettings.Name) completed!" }
         else { Write-Output "Compliance policy evaluation completed!" }
