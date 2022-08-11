@@ -202,12 +202,10 @@ function Get-CompliancePolicyCount {
 
         try {
             Write-Verbose "Querying Organization Configuration - In-place Hold Policies"
-            
             if (($orgSettings = Get-OrganizationConfig | Select-Object Name, InPlaceHolds, GUID).Count -ge 1) {
-                $progressCounter = 1
                 foreach ($inPlaceHold in $orgSettings.InPlaceHolds) {
                     $policyCounter ++
-                    Write-Progress -Activity "Querying Organization Configuration - In-place Hold Policies" -Status "Querying policy #:$progressCounter" -PercentComplete ($progressCounter / $orgSettings.InPlaceHolds.count * 100)
+                    Write-Progress -Activity "Querying Organization Configuration - In-place Hold Policies" -Status "Querying policy #: $progressCounter" -PercentComplete ($progressCounter / $orgSettings.InPlaceHolds.count * 100)
                     $progressCounter ++
                     $null = $inPlaceHoldsList.Add($inPlaceHold)
                 }
@@ -222,7 +220,7 @@ function Get-CompliancePolicyCount {
                 $progressCounter = 1
                 foreach ($retentionPolicy in $retentionPolicies) {
                     $policyCounter ++
-                    Write-Progress -Activity "Querying $($orgSettings.Name)'s retention polices" -Status "Querying retention policy #:$progressCounter" -PercentComplete ($progressCounter / $retentionPolicies.count * 100)
+                    Write-Progress -Activity "Querying $($orgSettings.Name)'s retention polices" -Status "Querying retention policy #: $progressCounter" -PercentComplete ($progressCounter / $retentionPolicies.count * 100)
                     $progressCounter ++
                     $null = $retentionPolicyList.Add($retentionPolicy)
                 }
@@ -237,7 +235,7 @@ function Get-CompliancePolicyCount {
                 $progressCounter = 1
                 foreach ($dlpPolicy in $dlpPolicies) {
                     $policyCounter ++
-                    Write-Progress -Activity "Querying $($orgSettings.Name)'s DLP Policies" -Status "Working" -PercentComplete ($progressCounter / $dlpPolicies.count * 100)
+                    Write-Progress -Activity "Querying $($orgSettings.Name)'s DLP Policies" -Status "Querying DLP policy #: $progressCounter" -PercentComplete ($progressCounter / $dlpPolicies.count * 100)
                     $progressCounter ++
                     $null = $dlpPolicyList.Add($dlpPolicy)
                 }
@@ -248,12 +246,11 @@ function Get-CompliancePolicyCount {
 
             # eDiscovery Standard cases in the Microsoft Purview compliance center
             Write-Verbose "Querying $($orgSettings.Name)'s standard eDiscovery cases"
-            $standardDiscoveryCases = Get-ComplianceCase
             if (($standardDiscoveryCases = Get-ComplianceCase).Count -ge 1) {
                 $progressCounter = 1
                 foreach ($standardCase in $standardDiscoveryCases) {
                     $policyCounter ++
-                    Write-Progress -Activity "Querying $($orgSettings.Name)'s standard eDiscovery cases" -Status "Querying standard eDiscovery case #:$progressCounter" -PercentComplete ($progressCounter / $standardDiscoveryCases.count * 100)
+                    Write-Progress -Activity "Querying $($orgSettings.Name)'s standard eDiscovery cases" -Status "Querying standard eDiscovery case #: $progressCounter" -PercentComplete ($progressCounter / $standardDiscoveryCases.count * 100)
                     $progressCounter ++
                     $null = $standardDiscoveryPolicyList.Add($standardCase)
 
@@ -292,7 +289,7 @@ function Get-CompliancePolicyCount {
                 $progressCounter = 1
                 foreach ($advancedCase in $advancedEDiscoveryCases) {
                     $policyCounter ++
-                    Write-Progress -Activity "Querying $($orgSettings.Name)'s advanced eDiscovery Cases" -Status "Querying advanced eDiscovery case #:$progressCounter" -PercentComplete ($progressCounter / $advancedEDiscoveryCases.count * 100)
+                    Write-Progress -Activity "Querying $($orgSettings.Name)'s advanced eDiscovery Cases" -Status "Querying advanced eDiscovery case #: $progressCounter" -PercentComplete ($progressCounter / $advancedEDiscoveryCases.count * 100)
                     $progressCounter ++
                     $null = $advancedDiscoveryPolicyList.Add($advancedCase)
 
@@ -315,7 +312,7 @@ function Get-CompliancePolicyCount {
                         $null = $advancedDiscoveryPolicyMemberList.Add($caseMember)
                     }
                     else {
-                        $null = $advancedDiscoveryPolicyMemberList.Add("No advanced eDiscovery case members found!")
+                        $null = $advancedDiscoveryPolicyMemberList.Add("No case custodians found!")
                     }
                 }
             }
