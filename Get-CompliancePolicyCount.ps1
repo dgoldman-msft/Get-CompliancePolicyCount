@@ -138,8 +138,8 @@ function Get-CompliancePolicyCount {
         [System.Collections.ArrayList] $retentionPolicyList = @()
         [System.Collections.ArrayList] $standardDiscoveryPolicyList = @()
         [System.Collections.ArrayList] $advancedDiscoveryPolicyList = @()
-        [System.Collections.ArrayList] $standardDiscoveryPolicyMemberList = @()
-        [System.Collections.ArrayList] $advancedDiscoveryPolicyMemberList = @()
+        [System.Collections.ArrayList] $standardDiscoveryPolicyCustodianList = @()
+        [System.Collections.ArrayList] $advancedDiscoveryPolicyCustodianList = @()
 
         try {
             if ($parameters.ContainsKey('EnableDebugLogging')) {
@@ -283,11 +283,11 @@ function Get-CompliancePolicyCount {
                                 RecipientType             = $caseMember.RecipientType
                                 WhenChanged               = $caseMember.WhenChanged
                             }
-                            $null = $standardDiscoveryPolicyMemberList.Add($caseMember)
+                            $null = $standardDiscoveryPolicyCustodianList.Add($caseMember)
                         }
                     }
                     else {
-                        $null = $advancedDiscoveryPolicyMemberList.Add("No standard eDiscovery custodians found!")
+                        $null = $standardDiscoveryPolicyCustodianList.Add("No standard eDiscovery custodians found!")
                     }
                 }
             }
@@ -321,10 +321,10 @@ function Get-CompliancePolicyCount {
                             RecipientType             = $caseMember.RecipientType
                             WhenChanged               = $caseMember.WhenChanged
                         }
-                        $null = $advancedDiscoveryPolicyMemberList.Add($caseMember)
+                        $null = $advancedDiscoveryPolicyCustodianList.Add($caseMember)
                     }
                     else {
-                        $null = $advancedDiscoveryPolicyMemberList.Add("No case custodians found!")
+                        $null = $advancedDiscoveryPolicyCustodianList.Add("No case custodians found!")
                     }
                 }
             }
@@ -362,9 +362,9 @@ function Get-CompliancePolicyCount {
                     LogToFile -DataToLog $dlpPolicyList -OutputDirectory $OutputDirectory -OutputFile "DlpPolicyList-$random.csv" -FileType 'csv'
                     LogToFile -DataToLog $retentionPolicyList -OutputDirectory $OutputDirectory -OutputFile "RetentionPolicyList-$random.csv" -FileType 'csv'
                     LogToFile -DataToLog $standardDiscoveryPolicyList -OutputDirectory $OutputDirectory -OutputFile "Standard-eDiscoveryPolicyList-$random.csv" -FileType 'csv'
-                    LogToFile -DataToLog $standardDiscoveryPolicyMemberList -OutputDirectory $OutputDirectory -OutputFile "Standard-eDiscoveryPolicyMemberList-$random.csv" -FileType 'csv'
+                    LogToFile -DataToLog $standardDiscoveryPolicyCustodianList -OutputDirectory $OutputDirectory -OutputFile "Standard-eDiscoveryPolicyCustodianList-$random.csv" -FileType 'csv'
                     LogToFile -DataToLog $advancedDiscoveryPolicyList -OutputDirectory $OutputDirectory -OutputFile "Advanced-eDiscoveryPolicyList-$random.csv" -FileType 'csv'
-                    LogToFile -DataToLog $advancedDiscoveryPolicyMemberList -OutputDirectory $OutputDirectory -OutputFile "Advanced-eDiscoveryCaseMemberList-$random.csv" -FileType 'csv'
+                    LogToFile -DataToLog $advancedDiscoveryPolicyCustodianList -OutputDirectory $OutputDirectory -OutputFile "Advanced-eDiscoveryCaseCustodianList-$random.csv" -FileType 'csv'
 
                     foreach ($hold in $inPlaceHoldsList) {
                         $holdResults = (($hold -split '(mbx|grp|skp|:|cld|UniH)') -match '\S')
@@ -391,8 +391,6 @@ function Get-CompliancePolicyCount {
                             RetentionActionDescription = $retentionActionValueDescription
                         }
                         LogToFile -DataToLog $inPlaceHoldsCustom -OutputDirectory $OutputDirectory -OutputFile "InPlaceHolds-$random.csv" -FileType 'csv'
-                        LogToFile -DataToLog $output -OutputDirectory $OutputDirectory -Outputfile "TotalPolicyCount.txt" -FileType 'txt'
-                        Write-Output "Saving policy count data to: $OutputDirectory\$policyCountLogFile"
                     }
                 }
                 catch {
@@ -416,13 +414,10 @@ function Get-CompliancePolicyCount {
         elseif ($orgSettings.Name) { Write-Output "Compliance policy evaluation of $($orgSettings.Name) completed!" }
         else { Write-Output "Compliance policy evaluation completed!" }
 
-        if ($policyCounter -ge $maximumPolicyCount) {
-            $output = "The $($orgSettings.Name) tenant has $policyCounter compliance policies! This exceeds the $maximumPolicyCount policies limit - ERROR! (OVER LIMIT)"
-            Write-Output $output
-        }
-        else {
-            $output = "The $($orgSettings.Name) tenant has $policyCounter compliance policies and is under the maximum number of $maximumPolicyCount - OK (UNDER LIMIT)"
-            Write-Output $output
-        }
+        if ($policyCounter -ge $maximumPolicyCount) { $output = "The $($orgSettings.Name) tenant has $policyCounter compliance policies! This exceeds the $maximumPolicyCount policies limit - ERROR! (OVER LIMIT)" }
+        else { $output = "The $($orgSettings.Name) tenant has $policyCounter compliance policies and is under the maximum number of $maximumPolicyCount - OK (UNDER LIMIT)" }
+        Write-Output $output
+        LogToFile -DataToLog $output -OutputDirectory $OutputDirectory -Outputfile "TotalPolicyCount.txt" -FileType 'txt'
+        Write-Output "Saving policy count data to: $OutputDirectory\$policyCountLogFile"
     }
 }
