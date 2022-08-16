@@ -286,9 +286,6 @@ function Get-CompliancePolicyCount {
                             $null = $standardDiscoveryPolicyCustodianList.Add($caseMember)
                         }
                     }
-                    else {
-                        $null = $standardDiscoveryPolicyCustodianList.Add("No standard eDiscovery custodians found!")
-                    }
                 }
             }
             else {
@@ -323,9 +320,6 @@ function Get-CompliancePolicyCount {
                         }
                         $null = $advancedDiscoveryPolicyCustodianList.Add($caseMember)
                     }
-                    else {
-                        $null = $advancedDiscoveryPolicyCustodianList.Add("No case custodians found!")
-                    }
                 }
             }
             else {
@@ -359,12 +353,20 @@ function Get-CompliancePolicyCount {
             if ($parameters.ContainsKey('SaveResults')) {
                 try {
                     Write-Output "Saving $($orgSettings.Name)'s compliance policy data to: $OutputDirectory"
-                    LogToFile -DataToLog $dlpPolicyList -OutputDirectory $OutputDirectory -OutputFile "DlpPolicyList-$random.csv" -FileType 'csv'
-                    LogToFile -DataToLog $retentionPolicyList -OutputDirectory $OutputDirectory -OutputFile "RetentionPolicyList-$random.csv" -FileType 'csv'
-                    LogToFile -DataToLog $standardDiscoveryPolicyList -OutputDirectory $OutputDirectory -OutputFile "Standard-eDiscoveryPolicyList-$random.csv" -FileType 'csv'
-                    LogToFile -DataToLog $standardDiscoveryPolicyCustodianList -OutputDirectory $OutputDirectory -OutputFile "Standard-eDiscoveryPolicyCustodianList-$random.csv" -FileType 'csv'
-                    LogToFile -DataToLog $advancedDiscoveryPolicyList -OutputDirectory $OutputDirectory -OutputFile "Advanced-eDiscoveryPolicyList-$random.csv" -FileType 'csv'
-                    LogToFile -DataToLog $advancedDiscoveryPolicyCustodianList -OutputDirectory $OutputDirectory -OutputFile "Advanced-eDiscoveryCaseCustodianList-$random.csv" -FileType 'csv'
+                    $totalPolicies = @{
+                        'dlpPolicyList'                        = $dlpPolicyList
+                        'retentionPolicyList'                  = $retentionPolicyList
+                        'standardDiscoveryPolicyList'          = $standardDiscoveryPolicyList
+                        'standardDiscoveryPolicyCustodianList' = $standardDiscoveryPolicyCustodianList
+                        'advancedDiscoveryPolicyList'          = $advancedDiscoveryPolicyList
+                        'advancedDiscoveryPolicyCustodianList' = $advancedDiscoveryPolicyCustodianList 
+                    }
+
+                    $totalPolicies.GetEnumerator() | ForEach-Object {
+                        if(-NOT($_.Value.Count -eq 0)){
+                            LogToFile -DataToLog $_.Value -OutputDirectory $OutputDirectory -OutputFile "$($_.key)-$random.csv" -FileType 'csv'
+                        }
+                    }
 
                     foreach ($hold in $inPlaceHoldsList) {
                         $holdResults = (($hold -split '(mbx|grp|skp|:|cld|UniH)') -match '\S')
@@ -402,22 +404,24 @@ function Get-CompliancePolicyCount {
         catch {
             Write-Output "ERROR: $_"
         }
-    }
 
-    end {
         Write-Verbose "Reverting ErrorActionPreference of 'Stop' to $savedErrorActionPreference"
         $ErrorActionPreference = $savedErrorActionPreference
         if ($failedConnection) {
             "CONNECTION FAILURE! Unable to connect to Exchange or the Security and Compliance endpoint. Please check the connection log for more information"
             LogToFile -DataToLog $connectionErrors -OutputDirectory $OutputDirectory -OutputFile "ConnectionLog-$random.txt" -FileType 'txt'
         }
-        elseif ($orgSettings.Name) { Write-Output "Compliance policy evaluation of $($orgSettings.Name) completed!" }
-        else { Write-Output "Compliance policy evaluation completed!" }
+        Write-Output "Compliance policy evaluation completed with errors!"
+    }
 
-        if ($policyCounter -ge $maximumPolicyCount) { $output = "The $($orgSettings.Name) tenant has $policyCounter compliance policies! This exceeds the $maximumPolicyCount policies limit - ERROR! (OVER LIMIT)" }
-        else { $output = "The $($orgSettings.Name) tenant has $policyCounter compliance policies and is under the maximum number of $maximumPolicyCount - OK (UNDER LIMIT)" }
-        Write-Output $output
-        LogToFile -DataToLog $output -OutputDirectory $OutputDirectory -Outputfile "TotalPolicyCount.txt" -FileType 'txt'
-        Write-Output "Saving policy count data to: $OutputDirectory\$policyCountLogFile"
+    end {
+        if (-NOT($failedConnection)) {
+            if ($policyCounter -ge $maximumPolicyCount) { $output = "The tenant has $policyCounter compliance policies! This exceeds the $maximumPolicyCount policies limit - ERROR! (OVER LIMIT)" }
+            else { $output = "The tenant has $policyCounter compliance policies and is under the maximum number of $maximumPolicyCount - OK (UNDER LIMIT)" }
+            Write-Output $output
+            LogToFile -DataToLog $output -OutputDirectory $OutputDirectory -Outputfile "TotalPolicyCount.txt" -FileType 'txt'
+            Write-Output "Saving policy count data to: $OutputDirectory\$policyCountLogFile"
+        }
     }
 }
+
