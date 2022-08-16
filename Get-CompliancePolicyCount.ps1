@@ -140,6 +140,10 @@ function Get-CompliancePolicyCount {
         [System.Collections.ArrayList] $advancedDiscoveryPolicyList = @()
         [System.Collections.ArrayList] $standardDiscoveryPolicyCustodianList = @()
         [System.Collections.ArrayList] $advancedDiscoveryPolicyCustodianList = @()
+        $totalPolicies = @{'dlpPolicyList' = $dlpPolicyList; 'retentionPolicyList' = $retentionPolicyList; 'standardDiscoveryPolicyList' = $standardDiscoveryPolicyList; `
+                'standardDiscoveryPolicyCustodianList' = $standardDiscoveryPolicyCustodianList; 'advancedDiscoveryPolicyList' = $advancedDiscoveryPolicyList; `
+                'advancedDiscoveryPolicyCustodianList' = $advancedDiscoveryPolicyCustodianList 
+        }
 
         try {
             if ($parameters.ContainsKey('EnableDebugLogging')) {
@@ -188,11 +192,9 @@ function Get-CompliancePolicyCount {
         }
 
         try {
-            if (Get-ChildItem -Path $OutputDirectory) {
-                Compress-Archive -Path $OutputDirectory -DestinationPath "$OutputDirectory\OldFiles-Archive.$(get-date -f yyyy-MM-dd).zip" -Force -CompressionLevel Fastest
-                Write-Verbose "Cleaning up and compressing old files for archive"
-                Remove-Item -Path $OutputDirectory\"*.*" -Exclude "*.zip"
-            }
+            Get-ChildItem -Path $OutputDirectory\*.txt, $OutputDirectory\*.csv -ErrorAction SilentlyContinue | Compress-Archive -DestinationPath "$OutputDirectory\OldFiles-Archive.$(get-date -f yyyy-MM-dd).zip" -Force -CompressionLevel Fastest -ErrorAction SilentlyContinue
+            Write-Verbose "Cleaning up and compressing old files for archive"
+            Remove-Item -Path $OutputDirectory\"*.*" -Exclude "*.zip" -ErrorAction SilentlyContinue
         }
         catch {
             Write-Output "ARCHIVING ERROR: $_"
@@ -353,17 +355,8 @@ function Get-CompliancePolicyCount {
             if ($parameters.ContainsKey('SaveResults')) {
                 try {
                     Write-Output "Saving $($orgSettings.Name)'s compliance policy data to: $OutputDirectory"
-                    $totalPolicies = @{
-                        'dlpPolicyList'                        = $dlpPolicyList
-                        'retentionPolicyList'                  = $retentionPolicyList
-                        'standardDiscoveryPolicyList'          = $standardDiscoveryPolicyList
-                        'standardDiscoveryPolicyCustodianList' = $standardDiscoveryPolicyCustodianList
-                        'advancedDiscoveryPolicyList'          = $advancedDiscoveryPolicyList
-                        'advancedDiscoveryPolicyCustodianList' = $advancedDiscoveryPolicyCustodianList 
-                    }
-
                     $totalPolicies.GetEnumerator() | ForEach-Object {
-                        if(-NOT($_.Value.Count -eq 0)){
+                        if (-NOT($_.Value.Count -eq 0)) {
                             LogToFile -DataToLog $_.Value -OutputDirectory $OutputDirectory -OutputFile "$($_.key)-$random.csv" -FileType 'csv'
                         }
                     }
