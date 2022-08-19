@@ -259,8 +259,8 @@ function Get-CompliancePolicyCount {
 
             # eDiscovery Standard cases in the Microsoft Purview compliance center
             Write-Verbose "Querying $($orgSettings.Name)'s standard eDiscovery cases"
-            $standardDiscoveryCases = Get-ComplianceCase
-            if ($standardDiscoveryCases) {
+            if ($standardDiscoveryCases = Get-ComplianceCase) {
+                $standardDiscoveryCases ++ # added for PowerShell 5.1 not having count variable on deserialized objects. Avoids Divide By 0 on progress bar
                 $progressCounter = 1
                 foreach ($standardCase in $standardDiscoveryCases) {
                     $policyCounter ++
@@ -289,18 +289,18 @@ function Get-CompliancePolicyCount {
                         }
                     }
                     else {
-                        $null = $standardDiscoveryPolicyCustodianList.Add([PSCustomObject]@{"Custodian Found" = "No custodian found!"})
+                        $null = $standardDiscoveryPolicyCustodianList.Add([PSCustomObject]@{"Custodian Found" = "No custodian found!" })
                     }
                 }
             }
             else {
-                $null = $standardDiscoveryPolicyList.Add([PSCustomObject]@{"Cases found" = "No standard eDiscovery cases found!"})
+                $null = $standardDiscoveryPolicyList.Add([PSCustomObject]@{"Cases found" = "No standard eDiscovery cases found!" })
             }
 
             # eDiscovery Advanced cases in the Microsoft Purview compliance center
             Write-Verbose "Querying $($orgSettings.Name)'s advanced eDiscovery Cases"
-            $advancedEDiscoveryCases = Get-ComplianceCase -CaseType Advanced
-            if ($advancedEDiscoveryCases) {
+            if ($advancedEDiscoveryCases = Get-ComplianceCase -CaseType Advanced) {
+                $advancedEDiscoveryCases ++ # added for PowerShell 5.1 not having count variable on deserialized objects. Avoids Divide By 0 on progress bar
                 $progressCounter = 1
                 foreach ($advancedCase in $advancedEDiscoveryCases) {
                     $policyCounter ++
@@ -327,18 +327,17 @@ function Get-CompliancePolicyCount {
                         $null = $advancedDiscoveryPolicyCustodianList.Add($caseMember)
                     }
                     else {
-                        $null = $advancedDiscoveryPolicyCustodianList.Add([PSCustomObject]@{"Custodian Found" = "No custodian found!"})
+                        $null = $advancedDiscoveryPolicyCustodianList.Add([PSCustomObject]@{"Custodian Found" = "No custodian found!" })
                     }
                 }
             }
             else {
-                $null = $advancedDiscoveryPolicyList.Add([PSCustomObject]@{"Cases found" = "No advanced eDiscovery cases found!"})
+                $null = $advancedDiscoveryPolicyList.Add([PSCustomObject]@{"Cases found" = "No advanced eDiscovery cases found!" })
             }
 
             # (DLP) policies in the Microsoft Purview compliance portal.
             Write-Verbose "Querying $($orgSettings.Name)'s retention label policies"
-            $retentionLabels = Get-DlpCompliancePolicy
-            if ($retentionLabels) { Write-Verbose "Retention labels found: $($retentionLabels.count)" }
+            if ($retentionLabels = Get-DlpCompliancePolicy) { Write-Verbose "Retention labels found: $($retentionLabels.count)" }
             else { $null = $retentionPolicyList.Add("No retention labels found") }
 
             try {
