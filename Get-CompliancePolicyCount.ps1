@@ -142,7 +142,7 @@ function Get-CompliancePolicyCount {
         [System.Collections.ArrayList] $advancedDiscoveryPolicyCustodianList = @()
         $totalPolicies = @{'dlpPolicyList' = $dlpPolicyList; 'retentionPolicyList' = $retentionPolicyList; 'standardDiscoveryPolicyList' = $standardDiscoveryPolicyList; `
                 'standardDiscoveryPolicyCustodianList' = $standardDiscoveryPolicyCustodianList; 'advancedDiscoveryPolicyList' = $advancedDiscoveryPolicyList; `
-                'advancedDiscoveryPolicyCustodianList' = $advancedDiscoveryPolicyCustodianList 
+                'advancedDiscoveryPolicyCustodianList' = $advancedDiscoveryPolicyCustodianList
         }
 
         try {
@@ -157,7 +157,6 @@ function Get-CompliancePolicyCount {
 
         Write-Verbose "Saving current ErrorActionPreference of $savedErrorActionPreference and changing to 'Stop'"
         $ErrorActionPreference = 'Stop'
-
         if ($UserPrincipalName -eq 'admin@tenant.onmicrosoft.com') { $UserPrincipalName = Read-Host -Prompt "Please enter an admin account" }
 
         try {
@@ -288,10 +287,13 @@ function Get-CompliancePolicyCount {
                             $null = $standardDiscoveryPolicyCustodianList.Add($caseMember)
                         }
                     }
+                    else {
+                        $null = $standardDiscoveryPolicyCustodianList.Add([PSCustomObject]@{"Custodian Found" = "No custodian found!"})
+                    }
                 }
             }
             else {
-                $null = $standardDiscoveryPolicyList.Add([PSCustomObject]@{"Cases" = "No standard eDiscovery cases found!"})
+                $null = $standardDiscoveryPolicyList.Add([PSCustomObject]@{"Cases Found" = "No standard eDiscovery cases found!"})
             }
 
             # eDiscovery Advanced cases in the Microsoft Purview compliance center
@@ -321,6 +323,9 @@ function Get-CompliancePolicyCount {
                             WhenChanged               = $caseMember.WhenChanged
                         }
                         $null = $advancedDiscoveryPolicyCustodianList.Add($caseMember)
+                    }
+                    else {
+                        $null = $advancedDiscoveryPolicyCustodianList.Add([PSCustomObject]@{"Custodian Found" = "No custodian found!"})
                     }
                 }
             }
