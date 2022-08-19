@@ -259,7 +259,8 @@ function Get-CompliancePolicyCount {
 
             # eDiscovery Standard cases in the Microsoft Purview compliance center
             Write-Verbose "Querying $($orgSettings.Name)'s standard eDiscovery cases"
-            if (($standardDiscoveryCases = Get-ComplianceCase).Count -ge 1) {
+            $standardDiscoveryCases = Get-ComplianceCase
+            if ($standardDiscoveryCases) {
                 $progressCounter = 1
                 foreach ($standardCase in $standardDiscoveryCases) {
                     $policyCounter ++
@@ -298,7 +299,8 @@ function Get-CompliancePolicyCount {
 
             # eDiscovery Advanced cases in the Microsoft Purview compliance center
             Write-Verbose "Querying $($orgSettings.Name)'s advanced eDiscovery Cases"
-            if (($advancedEDiscoveryCases = Get-ComplianceCase -CaseType Advanced).Count -ge 1) {
+            $advancedEDiscoveryCases = Get-ComplianceCase -CaseType Advanced
+            if ($advancedEDiscoveryCases) {
                 $progressCounter = 1
                 foreach ($advancedCase in $advancedEDiscoveryCases) {
                     $policyCounter ++
@@ -335,7 +337,8 @@ function Get-CompliancePolicyCount {
 
             # (DLP) policies in the Microsoft Purview compliance portal.
             Write-Verbose "Querying $($orgSettings.Name)'s retention label policies"
-            if (($retentionLabels = Get-DlpCompliancePolicy).Count -ge 1) { Write-Verbose "Retention labels found: $($retentionLabels.count)" }
+            $retentionLabels = Get-DlpCompliancePolicy
+            if ($retentionLabels) { Write-Verbose "Retention labels found: $($retentionLabels.count)" }
             else { $null = $retentionPolicyList.Add("No retention labels found") }
 
             try {
@@ -408,8 +411,8 @@ function Get-CompliancePolicyCount {
         if ($failedConnection) {
             "CONNECTION FAILURE! Unable to connect to Exchange or the Security and Compliance endpoint. Please check the connection log for more information"
             LogToFile -DataToLog $connectionErrors -OutputDirectory $OutputDirectory -OutputFile "ConnectionLog-$random.txt" -FileType 'txt'
+            Write-Output "Compliance policy evaluation completed with errors!"
         }
-        Write-Output "Compliance policy evaluation completed with errors!"
     }
 
     end {
