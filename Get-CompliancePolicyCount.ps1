@@ -291,7 +291,7 @@ function Get-CompliancePolicyCount {
                 }
             }
             else {
-                $null = $standardDiscoveryPolicyList.Add("No standard eDiscovery cases found!")
+                $null = $standardDiscoveryPolicyList.Add([PSCustomObject]@{"Cases" = "No standard eDiscovery cases found!"})
             }
 
             # eDiscovery Advanced cases in the Microsoft Purview compliance center
@@ -325,7 +325,7 @@ function Get-CompliancePolicyCount {
                 }
             }
             else {
-                $null = $advancedDiscoveryPolicyList.Add("No advanced eDiscovery cases found!")
+                $null = $advancedDiscoveryPolicyList.Add([PSCustomObject]@{"Cases" = "No advanced eDiscovery cases found!"})
             }
 
             # (DLP) policies in the Microsoft Purview compliance portal.
