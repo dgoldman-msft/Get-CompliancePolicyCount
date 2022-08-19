@@ -110,7 +110,7 @@ function Get-CompliancePolicyCount {
         $EnableDebugLogging,
 
         [string]
-        $OutputDirectory = "c:\CompliancePolicyLogging",
+        $OutputDirectory = "c:\CompliancePolicyLogging", 
 
         [string]
         $OutputFile = "CompliancePolicyResults",
@@ -147,8 +147,8 @@ function Get-CompliancePolicyCount {
 
         try {
             if ($parameters.ContainsKey('EnableDebugLogging')) {
-                Write-Verbose "Starting debug logging"
                 Start-Transcript -Path (Join-Path -Path $OutputDirectory -ChildPath $TranscriptFile) -Append
+                Write-Verbose "Starting debug logging"
             }
         }
         catch {
@@ -165,13 +165,13 @@ function Get-CompliancePolicyCount {
             if (-NOT (Get-Module -Name ExchangeOnlineManagement -ListAvailable)) {
                 Write-Verbose "Installing the ExchangeOnlineManagement module from the PowerShellGallery"
                 if (Install-Module -Name ExchangeOnlineManagement -Repository PSGallery -Scope CurrentUser -Force) {
-                    Write-Verbose "Importing the ExchangeOnlineManagement"
                     Import-Module -Name ExchangeOnlineManagement -Force
+                    Write-Verbose "Importing ExchangeOnlineManagement complete"
                 }
             }
             else {
-                Write-Verbose "ExchangeOnlineManagement found. Importing module"
                 Import-Module -Name ExchangeOnlineManagement -Force
+                Write-Verbose "Importing ExchangeOnlineManagement complete"
             }
         }
         catch {
