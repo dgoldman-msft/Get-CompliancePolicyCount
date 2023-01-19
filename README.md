@@ -1,7 +1,7 @@
 # Get-CompliancePolicyCount
 Calculate total number of O365 tenant wide compliance related policies
 
-><b><span style="color:red">WARNING</span>: <span style="color:yellow">This data collection can contain sensitive information such as policy names, policy lables, user names, computer names, file names, and other PII / OII. 
+><b><span style="color:red">WARNING</span>: <span style="color:yellow">This data collection can contain sensitive information such as policy names, policy lables, user names, computer names, file names, and other PII / OII.
 
 ** Please vet files before sending to any support professionals for review! ** </span>
 
@@ -18,3 +18,5 @@ Calculate total number of O365 tenant wide compliance related policies
 - EXAMPLE 3: Get-CompliancePolicyCount -SaveResults -Verbose
 
 	Query compliance policy information and save the current scan to the default location of c:\CompliancePolicyLogging\PolicyResults.csv
+
+For more information on Limits please see: <a href ="https://learn.microsoft.com/en-us/microsoft-365/compliance/retention-limits?view=o365-worldwide#maximum-number-of-policies-per-tenant">Limits for Microsoft 365 retention policies and retention label policies - Microsoft Purview (compliance) | Microsoft Learn</a>
