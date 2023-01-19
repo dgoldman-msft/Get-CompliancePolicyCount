@@ -51,7 +51,7 @@ function LogToFile {
         }
     }
     catch {
-        $_
+        Write-Output "$_"
         return
     }
 }
@@ -110,7 +110,7 @@ function Get-CompliancePolicyCount {
         $EnableDebugLogging,
 
         [string]
-        $OutputDirectory = "c:\CompliancePolicyLogging", 
+        $OutputDirectory = "c:\CompliancePolicyLogging",
 
         [string]
         $OutputFile = "CompliancePolicyResults",
@@ -147,19 +147,37 @@ function Get-CompliancePolicyCount {
 
         try {
             if ($parameters.ContainsKey('EnableDebugLogging')) {
-                Start-Transcript -Path (Join-Path -Path $OutputDirectory -ChildPath $TranscriptFile) -Append
                 Write-Verbose "Starting debug logging"
+                Start-Transcript -Path (Join-Path -Path $OutputDirectory -ChildPath $TranscriptFile) -Append
             }
         }
         catch {
-            Write-Output "DEBUG LOGGING ERROR: $_"
+            Write-Output "ERROR: $_"
         }
 
         Write-Verbose "Saving current ErrorActionPreference of $savedErrorActionPreference and changing to 'Stop'"
         $ErrorActionPreference = 'Stop'
-        if ($UserPrincipalName -eq 'admin@tenant.onmicrosoft.com') { $UserPrincipalName = Read-Host -Prompt "Please enter an admin account" }
 
         try {
+            Write-Verbose "Checking for existence of: $($OutputDirectory)"
+            if (-NOT(Test-Path -Path $OutputDirectory)) {
+                $null = New-Item -Path $OutputDirectory -ItemType Directory
+                Write-Verbose "Created new directory: $($OutputDirectory)"
+            }
+            else {
+                    Write-Verbose "Directory: $($OutputDirectory) found!"
+            }
+        }
+        catch {
+            Write-Output "TEMP DIRECTORY ERROR: $_"
+            return
+        }
+    }
+
+    process {
+        try {
+            if ($UserPrincipalName -eq 'admin@tenant.onmicrosoft.com') { $UserPrincipalName = Read-Host -Prompt "Please enter an admin account" }
+
             Write-Verbose "Checking for the ExchangeOnlineManagement module"
             if (-NOT (Get-Module -Name ExchangeOnlineManagement -ListAvailable)) {
                 Write-Verbose "Installing the ExchangeOnlineManagement module from the PowerShellGallery"
@@ -169,8 +187,8 @@ function Get-CompliancePolicyCount {
                 }
             }
             else {
+                Write-Verbose "Importing the ExchangeOnlineManagement module"
                 Import-Module -Name ExchangeOnlineManagement -Force
-                Write-Verbose "Importing ExchangeOnlineManagement complete"
             }
         }
         catch {
@@ -179,36 +197,13 @@ function Get-CompliancePolicyCount {
         }
 
         try {
-            Write-Verbose "Checking for existence of: $($OutputDirectory)"
-            if (-NOT(Test-Path -Path $OutputDirectory)) {
-                $null = New-Item -Path $OutputDirectory -ItemType Directory
-                Write-Verbose "Created new directory: $($OutputDirectory)"
-            }
-        }
-        catch {
-            Write-Output "TEMP DIRECTORY ERROR: $_"
-            return
-        }
-
-        try {
-            Get-ChildItem -Path $OutputDirectory\*.txt, $OutputDirectory\*.csv -ErrorAction SilentlyContinue | Compress-Archive -DestinationPath "$OutputDirectory\OldFiles-Archive.$(get-date -f yyyy-MM-dd).zip" -Force -CompressionLevel Fastest -ErrorAction SilentlyContinue
-            Write-Verbose "Cleaning up and compressing old files for archive"
-            Remove-Item -Path $OutputDirectory\"*.*" -Exclude "*.zip" -ErrorAction SilentlyContinue
-        }
-        catch {
-            Write-Output "ARCHIVING ERROR: $_"
-            return
-        }
-    }
-
-    process {
-        try {
             Write-Output "Connecting to Exchange Online"
             Connect-ExchangeOnline -UserPrincipalName $UserPrincipalName -ShowBanner:$false -ShowProgress:$false -ErrorVariable failedConnection
             Write-Output "Connecting to the Security and Compliance Center"
             Connect-IPPSSession -UserPrincipalName $UserPrincipalName -ErrorVariable FailedConnection
         }
         catch {
+            Write-Output "CONNECTION ERROR: $_"
             $connectionErrors = $_
             return
         }
@@ -260,11 +255,12 @@ function Get-CompliancePolicyCount {
             # eDiscovery Standard cases in the Microsoft Purview compliance center
             Write-Verbose "Querying $($orgSettings.Name)'s standard eDiscovery cases"
             if ($standardDiscoveryCases = Get-ComplianceCase) {
-                $standardDiscoveryCases ++ # added for PowerShell 5.1 not having count variable on deserialized objects. Avoids Divide By 0 on progress bar
+                [int]$standardDiscoveryCasesCount = $standardDiscoveryCases.count
+                $standardDiscoveryCasesCount++
                 $progressCounter = 1
                 foreach ($standardCase in $standardDiscoveryCases) {
                     $policyCounter ++
-                    Write-Progress -Activity "Querying $($orgSettings.Name)'s standard eDiscovery cases" -Status "Querying standard eDiscovery case #: $progressCounter" -PercentComplete ($progressCounter / $standardDiscoveryCases.count * 100)
+                    Write-Progress -Activity "Querying $($orgSettings.Name)'s standard eDiscovery cases" -Status "Querying standard eDiscovery case #: $progressCounter" -PercentComplete ($progressCounter / $standardDiscoveryCasesCount * 100)
                     $progressCounter ++
                     $null = $standardDiscoveryPolicyList.Add($standardCase)
 
@@ -300,11 +296,12 @@ function Get-CompliancePolicyCount {
             # eDiscovery Advanced cases in the Microsoft Purview compliance center
             Write-Verbose "Querying $($orgSettings.Name)'s advanced eDiscovery Cases"
             if ($advancedEDiscoveryCases = Get-ComplianceCase -CaseType Advanced) {
-                $advancedEDiscoveryCases ++ # added for PowerShell 5.1 not having count variable on deserialized objects. Avoids Divide By 0 on progress bar
+                [int]$advancedEDiscoveryCasesCount = $advancedEDiscoveryCases.count
+                $standardDiscoveryCasesCount++
                 $progressCounter = 1
                 foreach ($advancedCase in $advancedEDiscoveryCases) {
                     $policyCounter ++
-                    Write-Progress -Activity "Querying $($orgSettings.Name)'s advanced eDiscovery Cases" -Status "Querying advanced eDiscovery case #: $progressCounter" -PercentComplete ($progressCounter / $advancedEDiscoveryCases.count * 100)
+                    Write-Progress -Activity "Querying $($orgSettings.Name)'s advanced eDiscovery Cases" -Status "Querying advanced eDiscovery case #: $progressCounter" -PercentComplete ($progressCounter / $advancedEDiscoveryCasesCount * 100)
                     $progressCounter ++
                     $null = $advancedDiscoveryPolicyList.Add($advancedCase)
 
@@ -405,6 +402,16 @@ function Get-CompliancePolicyCount {
             Write-Output "ERROR: $_"
         }
 
+        try {
+            Get-ChildItem -Path $OutputDirectory\*.txt, $OutputDirectory\*.csv -ErrorAction SilentlyContinue | Compress-Archive -DestinationPath "$OutputDirectory\OldFiles-Archive.$(get-date -f yyyy-MM-dd).zip" -Force -CompressionLevel Fastest -ErrorAction SilentlyContinue
+            Write-Verbose "Cleaning up and compressing old files for archive"
+            Remove-Item -Path $OutputDirectory\"*.*" -Exclude "*.zip" -ErrorAction SilentlyContinue
+        }
+        catch {
+            Write-Output "ARCHIVING ERROR: $_"
+            return
+        }
+
         Write-Verbose "Reverting ErrorActionPreference of 'Stop' to $savedErrorActionPreference"
         $ErrorActionPreference = $savedErrorActionPreference
         if ($failedConnection) {
@@ -420,8 +427,9 @@ function Get-CompliancePolicyCount {
             else { $output = "The tenant has $policyCounter compliance policies and is under the maximum number of $maximumPolicyCount - OK (UNDER LIMIT)" }
             Write-Output $output
             LogToFile -DataToLog $output -OutputDirectory $OutputDirectory -Outputfile "TotalPolicyCount.txt" -FileType 'txt'
-            Write-Output "Saving policy count data to: $OutputDirectory\$policyCountLogFile"
         }
+
+        Write-Output "Saving policy count data to: $OutputDirectory\$policyCountLogFile"
     }
 }
 
