@@ -403,9 +403,9 @@ function Get-CompliancePolicyCount {
         }
 
         try {
-            Get-ChildItem -Path $OutputDirectory\*.txt, $OutputDirectory\*.csv -ErrorAction SilentlyContinue | Compress-Archive -DestinationPath "$OutputDirectory\OldFiles-Archive.$(get-date -f yyyy-MM-dd).zip" -Force -CompressionLevel Fastest -ErrorAction SilentlyContinue
             Write-Verbose "Cleaning up and compressing old files for archive"
-            Remove-Item -Path $OutputDirectory\"*.*" -Exclude "*.zip" -ErrorAction SilentlyContinue
+            Get-ChildItem -Path $OutputDirectory\*.txt, $OutputDirectory\*.csv -ErrorAction SilentlyContinue | Compress-Archive -DestinationPath "$OutputDirectory\OldFiles-Archive.$(get-date -f yyyy-MM-dd).zip" -Force -CompressionLevel Fastest -ErrorAction SilentlyContinue
+            Remove-Item -Path $OutputDirectory\"*.*" -Exclude "*.zip","*.ps1" -ErrorAction SilentlyContinue
         }
         catch {
             Write-Output "ARCHIVING ERROR: $_"
@@ -419,17 +419,16 @@ function Get-CompliancePolicyCount {
             LogToFile -DataToLog $connectionErrors -OutputDirectory $OutputDirectory -OutputFile "ConnectionLog-$random.txt" -FileType 'txt'
             Write-Output "Compliance policy evaluation completed with errors!"
         }
-    }
-
-    end {
-        if (-NOT($failedConnection)) {
+        else {
             if ($policyCounter -ge $maximumPolicyCount) { $output = "The tenant has $policyCounter compliance policies! This exceeds the $maximumPolicyCount policies limit - ERROR! (OVER LIMIT)" }
             else { $output = "The tenant has $policyCounter compliance policies and is under the maximum number of $maximumPolicyCount - OK (UNDER LIMIT)" }
             Write-Output $output
-            LogToFile -DataToLog $output -OutputDirectory $OutputDirectory -Outputfile "TotalPolicyCount.txt" -FileType 'txt'
         }
+    }
 
-        Write-Output "Saving policy count data to: $OutputDirectory\$policyCountLogFile"
+    end {
+        LogToFile -DataToLog $output -OutputDirectory $OutputDirectory -Outputfile "TotalPolicyCount.txt" -FileType 'txt'
+        Write-Output "Saving policy count results to: $OutputDirectory"
     }
 }
 
