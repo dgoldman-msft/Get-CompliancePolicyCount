@@ -56,6 +56,38 @@ function LogToFile {
     }
 }
 
+function Remove-Sessions {
+    <#
+    .SYNOPSIS
+        Close connections
+
+    .DESCRIPTION
+        Disconnect sessions to Exchange Online and Security and Compliance Center
+
+    .EXAMPLE
+        None
+
+    .NOTES
+        None
+    #>
+
+    [CmdletBinding(DefaultParameterSetName = 'Default')]
+    param()
+
+    try {
+        Write-Output "Preforming session cleanup to: $($orgSettings.Name)"
+        foreach ($session in Get-PSSession) {
+            if ($session.ComputerName -like '*compliance*' -or $session.ComputerName -eq 'outlook.office365.com') {
+                Write-Verbose "Removing session: $session.ComputerName"
+                Remove-PSSession $session
+            }
+        }
+    }
+    catch {
+        Write-Output "SESSION CLEANUP ERROR: $_"
+     }
+}
+
 function Get-CompliancePolicyCount {
     <#
 	.SYNOPSIS
@@ -139,23 +171,19 @@ function Get-CompliancePolicyCount {
     begin {
         Write-Output "Starting policy evaluation"
         $parameters = $PSBoundParameters
-        $connectionErrors = "None"
         $random = Get-Random
         $policyCounter = 0
         $maximumPolicyCount = 10000
-        $savedErrorActionPreference = $ErrorActionPreference
         [System.Collections.ArrayList] $inPlaceHoldsList = @()
         [System.Collections.ArrayList] $dlpPolicyList = @()
         [System.Collections.ArrayList] $retentionPolicyList = @()
-        [System.Collections.ArrayList] $retentionLabelList = @()
         [System.Collections.ArrayList] $standardDiscoveryCaseHoldsList = @()
-        [System.Collections.ArrayList] $advancedDiscoveryCaseHoldsList = @()
+        [System.Collections.ArrayList] $CaseHoldPolicyList = @()
         [System.Collections.ArrayList] $standardDiscoveryPolicyList = @()
         [System.Collections.ArrayList] $advancedDiscoveryPolicyList = @()
         $totalPolicies = @{'InPlaceHoldList' = $inPlaceHoldsList; 'dlpPolicyList' = $dlpPolicyList; 'retentionPolicyList' = $retentionPolicyList; `
-                'retentionLabelList' = $retentionLabelList; `
-                'standardDiscoveryPolicyList' = $standardDiscoveryPolicyList; 'standardDiscoveryCaseHoldsList' = $advancedDiscoveryCaseHoldsList; `
-                'advancedDiscoveryCaseHoldsList' = $standardDiscoveryCaseHoldsList; 'advancedDiscoveryPolicyList' = $advancedDiscoveryPolicyList;
+                'standardDiscoveryPolicyList' = $standardDiscoveryPolicyList; 'standardDiscoveryCaseHoldsList' = $CaseHoldPolicyList; `
+                'CaseHoldPolicyList' = $standardDiscoveryCaseHoldsList; 'advancedDiscoveryPolicyList' = $advancedDiscoveryPolicyList;
         }
 
         try {
@@ -168,12 +196,9 @@ function Get-CompliancePolicyCount {
             Write-Output "ERROR: $_"
         }
 
-        Write-Verbose "Saving current ErrorActionPreference of $savedErrorActionPreference and changing to 'Stop'"
-        $ErrorActionPreference = 'Stop'
-
         try {
             Write-Verbose "Checking for existence of: $($OutputDirectory)"
-            if (-NOT(Test-Path -Path $OutputDirectory)) {
+            if (-NOT(Test-Path -Path $OutputDirectory -ErrorAction Stop)) {
                 $null = New-Item -Path $OutputDirectory -ItemType Directory
                 Write-Verbose "Created new directory: $($OutputDirectory)"
             }
@@ -192,9 +217,9 @@ function Get-CompliancePolicyCount {
             if ($UserPrincipalName -eq 'admin@tenant.onmicrosoft.com') { $UserPrincipalName = Read-Host -Prompt "Please enter an admin account" }
 
             Write-Verbose "Checking for the ExchangeOnlineManagement module"
-            if (-NOT (Get-Module -Name ExchangeOnlineManagement -ListAvailable)) {
+            if (-NOT (Get-Module -Name ExchangeOnlineManagement -ListAvailable -ErrorAction Stop)) {
                 Write-Verbose "Installing the ExchangeOnlineManagement module from the PowerShellGallery"
-                if (Install-Module -Name ExchangeOnlineManagement -Repository PSGallery -Scope CurrentUser -Force) {
+                if (Install-Module -Name ExchangeOnlineManagement -Repository PSGallery -Scope CurrentUser -Force -ErrorAction Stop) {
                     Import-Module -Name ExchangeOnlineManagement -Force
                     Write-Verbose "Importing ExchangeOnlineManagement complete"
                 }
@@ -211,70 +236,111 @@ function Get-CompliancePolicyCount {
 
         try {
             Write-Output "Connecting to Exchange Online"
-            Connect-ExchangeOnline -UserPrincipalName $UserPrincipalName -ShowBanner:$false -ShowProgress:$false -ErrorVariable failedConnection
+            Connect-ExchangeOnline -UserPrincipalName $UserPrincipalName -ShowBanner:$false -ShowProgress:$false -ErrorVariable failedConnection -ErrorAction Stop
             Write-Output "Connecting to the Security and Compliance Center"
-            Connect-IPPSSession -UserPrincipalName $UserPrincipalName -ErrorVariable FailedConnection
+            Connect-IPPSSession -UserPrincipalName $UserPrincipalName -ErrorVariable FailedConnection -ErrorAction Stop
         }
         catch {
             Write-Output "CONNECTION ERROR: $_"
-            $connectionErrors = $_
+            "CONNECTION FAILURE! Unable to connect to Exchange or the Security and Compliance endpoint. Please check the connection log for more information"
+            Write-Output "Compliance policy evaluation completed with errors!"
+            Remove-Sessions
             return
         }
 
         try {
             Write-Verbose "Querying Organization Configuration - In-place Hold Policies"
-            if (($orgSettings = Get-OrganizationConfig | Select-Object Name, InPlaceHolds, GUID).InPlaceHolds.Count -ge 1) {
+            if (($orgSettings = Get-OrganizationConfig -ErrorAction Stop | Select-Object Name, InPlaceHolds, GUID).InPlaceHolds.Count -ge 1) {
                 foreach ($inPlaceHold in $orgSettings.InPlaceHolds) {
                     if (-NOT($parameters.ContainsKey('DisableProgressBar'))) {
-                        Write-Progress -Activity "Querying Organization Configuration - In-place Hold Policies" -Status "Querying policy #: $progressCounter" -PercentComplete ($progressCounter / $orgSettings.InPlaceHolds.count * 100)
+                        $progressCounter = 1
+                        Write-Progress -Activity "Querying Organization Configuration - In-place Hold Policies" -Status "Querying policy #: $progressCounter" -PercentComplete ($progressCounter / $($orgSettings.InPlaceHolds.count) * 100)
                         $progressCounter ++
                     }
-                    $null = $inPlaceHoldsList.Add($inPlaceHold)
+
+                    $holdResults = (($inPlaceHold -split '(mbx|grp|skp|:|cld|UniH)') -match '\S')
+
+                    switch ($holdResults[0]) {
+                        'UniH' { $prefixDescription = 'eDiscovery cases (holds) in the Security and Compliance Center' }
+                        'cld' { $prefixDescription = 'Exchange mailbox specific hold (in-place hold)' }
+                        'mbx' { $prefixDescription = 'Organization-wide retention policies applied to Exchange mailboxes, Exchange public folders, and 1xN chats in Microsoft Teams. Note 1xN chats are stored in the mailbox of the individual chat participants.' }
+                        'grp' { $prefixDescription = 'Organization-wide retention policies applied to Office 365 groups and channel messages in Microsoft Teams.' }
+                        'skp' { $prefixDescription = 'Indicates that the retention policy is configured to hold items and then delete them after the retention period expires.' }
+                    }
+
+                    switch ($holdResults[3]) {
+                        1 { $retentionActionValueDescription = 'Indicates that the retention policy is configured to delete items. The policy does not retain items.' }
+                        2 { $retentionActionValueDescription = 'Indicates that the retention policy is configured to hold items. The policy does not delete items after the retention period expires.' }
+                        3 { $retentionActionValueDescription = 'Indicates that the retention policy is configured to hold items and then delete them after the retention period expires.' }
+                    }
+
+                    $inPlaceHoldsCustom = [PSCustomObject]@{
+                        Prefix                     = $holdResults[0]
+                        PrefixDescription          = $prefixDescription
+                        GUID                       = $holdResults[1]
+                        RetentionAction            = $holdResults[3]
+                        RetentionActionDescription = $retentionActionValueDescription
+                    }
+                    $null = $inPlaceHoldsList.Add($inPlaceHoldsCustom)
                 }
                 $policyCounter += $inPlaceHoldsList.Count
             }
+        }
+        catch {
+            Write-Output "ORGANIZATIONAL CONFIGURATION ERROR: $_"
+        }
 
+        try {
             # Retention policies in the Microsoft Purview compliance center
             Write-Verbose "Querying $($orgSettings.Name)'s retention polices"
-            if (($retentionPolicies = Get-RetentionCompliancePolicy).Count -ge 1) {
-                $progressCounter = 1
+            if (($retentionPolicies = Get-RetentionCompliancePolicy -ErrorAction Stop).Count -ge 1) {
                 foreach ($retentionPolicy in $retentionPolicies) {
                     if (-NOT($parameters.ContainsKey('DisableProgressBar'))) {
-                        Write-Progress -Activity "Querying $($orgSettings.Name)'s retention polices" -Status "Querying retention policy #: $progressCounter" -PercentComplete ($progressCounter / $retentionPolicies.count * 100)
+                        Write-Progress -Activity "Querying $($orgSettings.Name)'s retention polices" -Status "Querying retention policy #: $progressCounter" -PercentComplete (1 / $retentionPolicies.count * 100)
                         $progressCounter ++
                     }
                     $null = $retentionPolicyList.Add($retentionPolicy)
                 }
+                Write-Verbose "Retention Policy Found: $($retentionPolicy)"
                 $policyCounter += $retentionPolicyList.count
             }
+        }
+        catch {
+            Write-Output "RETENTION POLICY ERROR: $_"
+        }
 
+        try {
             # Data loss prevention (DLP) policies in the Microsoft Purview compliance center
             Write-Verbose "Querying $($orgSettings.Name)'s DLP Policies"
-            if (($dlpPolicies = Get-DlpCompliancePolicy).Count -ge 1) {
-                $progressCounter = 1
+            if (($dlpPolicies = Get-DlpCompliancePolicy -ErrorAction Stop).Count -ge 1) {
                 foreach ($dlpPolicy in $dlpPolicies) {
                     if (-NOT($parameters.ContainsKey('DisableProgressBar'))) {
-                        Write-Progress -Activity "Querying $($orgSettings.Name)'s DLP Policies" -Status "Querying DLP policy #: $progressCounter" -PercentComplete ($progressCounter / $dlpPolicies.count * 100)
+                        Write-Progress -Activity "Querying $($orgSettings.Name)'s DLP Policies" -Status "Querying DLP policy #: $progressCounter" -PercentComplete (1 / $dlpPolicies.count * 100)
                         $progressCounter ++
                     }
+                    Write-Verbose "DLP Policy Found: $($dlpPolicy)"
                     $null = $dlpPolicyList.Add($dlpPolicy)
                 }
                 $policyCounter += $dlpPolicyList.count
             }
+        }
+        catch {
+            Write-Output "DLP POLICY ERROR: $_"
+        }
 
+        try {
             # eDiscovery Standard cases in the Microsoft Purview compliance center
             Write-Verbose "Querying $($orgSettings.Name)'s standard eDiscovery cases"
-            if ($standardDiscoveryCases = Get-ComplianceCase) {
-                $progressCounter = 1
+            if ($standardDiscoveryCases = Get-ComplianceCase -ErrorAction Stop) {
                 foreach ($standardCase in $standardDiscoveryCases) {
                     if (-NOT($parameters.ContainsKey('DisableProgressBar'))) {
-                        Write-Progress -Activity "Querying $($orgSettings.Name)'s standard eDiscovery cases" -Status "Querying standard eDiscovery case #: $progressCounter" -PercentComplete ($progressCounter / $standardDiscoveryCases.count * 100)
+                        Write-Progress -Activity "Querying $($orgSettings.Name)'s standard eDiscovery cases" -Status "Querying standard eDiscovery case #: $progressCounter" -PercentComplete (1 / $standardDiscoveryCases.count * 100)
                         $progressCounter ++
                     }
                     $null = $standardDiscoveryPolicyList.Add($standardCase)
 
                     Write-Verbose "Querying hold policies of $($orgSettings.Name)'s standard eDiscovery case with name: $($standardCase.name)"
-                    if ($standardDiscoveryCaseHolds = Get-CaseHoldPolicy -Case $standardCase.Identity) {
+                    if ($standardDiscoveryCaseHolds = Get-CaseHoldPolicy -Case $standardCase.Identity -ErrorAction Stop) {
                         foreach ($caseHoldPolicy in $standardDiscoveryCaseHolds) {
                             Write-Verbose "Found HoldPolicy in eDiscovery $($orgSettings.Name)'s standard eDiscovery cases with name $($caseHoldPolicy.name)"
                             $null = $standardDiscoveryCaseHoldsList.add($caseHoldPolicy)
@@ -284,141 +350,92 @@ function Get-CompliancePolicyCount {
                 $policyCounter += $standardDiscoveryPolicyList.count
                 $policyCounter += $standardDiscoveryCaseHoldsList.count
             }
+        }
+        catch {
+            Write-Output "STANDARD eDISCOVERY POLICY ERROR: $_"
+        }
 
+        try {
             # eDiscovery Advanced cases in the Microsoft Purview compliance center
             Write-Verbose "Querying $($orgSettings.Name)'s advanced eDiscovery Cases"
-            if ($advancedEDiscoveryCases = Get-ComplianceCase -CaseType Advanced) {
-                $progressCounter = 1
+            if ($advancedEDiscoveryCases = Get-ComplianceCase -CaseType Advanced -ErrorAction Stop) {
                 foreach ($advancedCase in $advancedEDiscoveryCases) {
                     if (-NOT($parameters.ContainsKey('DisableProgressBar'))) {
-                        Write-Progress -Activity "Querying $($orgSettings.Name)'s advanced eDiscovery Cases" -Status "Querying advanced eDiscovery case #: $progressCounter" -PercentComplete ($progressCounter / $advancedEDiscoveryCases.count * 100)
+                        Write-Progress -Activity "Querying $($orgSettings.Name)'s advanced eDiscovery Cases" -Status "Querying advanced eDiscovery case #: $progressCounter" -PercentComplete (1 / $advancedEDiscoveryCases.count * 100)
                         $progressCounter ++
                     }
                     $null = $advancedDiscoveryPolicyList.Add($advancedCase)
 
                     Write-Verbose "Querying hold policies of $($orgSettings.Name)'s advanced eDiscovery case with name: $($advancedCase.name)"
-                    if ($advancedDiscoveryCaseHolds = Get-CaseHoldPolicy -Case $advancedCase.Identity) {
-                        foreach ($advancedCaseHoldPolicy in $advancedDiscoveryCaseHolds) {
-                            Write-Verbose "Found HoldPolicy in eDiscovery $($orgSettings.Name)'s advanced eDiscovery cases with name $($advancedCaseHoldPolicy.name)"
-                            $null = $advancedDiscoveryCaseHoldsList.add($advancedCaseHoldPolicy)
+                    if ($CaseHoldPolicies = Get-CaseHoldPolicy -Case $advancedCase.Identity -ErrorAction Stop) {
+                        foreach ($caseHoldPolicy in $CaseHoldPolicies) {
+                            Write-Verbose "Found HoldPolicy in eDiscovery $($orgSettings.Name)'s advanced eDiscovery cases with name $($caseHoldPolicy.name)"
+                            $null = $CaseHoldPolicyList.add($caseHoldPolicy)
                         }
                     }
                 }
                 $policyCounter += $advancedDiscoveryPolicyList.count
-                $policyCounter += $advancedDiscoveryCaseHoldsList.count
-            }
-
-            # (DLP) policies in the Microsoft Purview compliance portal.
-            Write-Verbose "Querying $($orgSettings.Name)'s retention label policies"
-            if ($retentionLabels = Get-DlpCompliancePolicy) {
-                foreach ($label in $retentionLabels) {
-                    Write-Verbose "Retention labels found: $($retentionLabels.count)"
-                    $null = $retentionLabelList.add($label)
-                }
-            }
-            else { $null = $retentionLabelList.Add("No retention labels found") }
-
-            try {
-                Write-Output "Preforming session cleanup to: $($orgSettings.Name)"
-                foreach ($session in Get-PSSession) {
-                    if ($session.ComputerName -like '*compliance*' -or $session.ComputerName -eq 'outlook.office365.com') {
-                        Write-Verbose "Removing session: $session.ComputerName"
-                        Remove-PSSession $session
-                    }
-                }
-            }
-            catch {
-                Write-Output "SESSION CLEANUP ERROR: $_"
-                return
-            }
-
-            if ($parameters.ContainsKey('EnableDebugLogging')) {
-                Write-Verbose "Stopping debug logging"
-                Stop-Transcript
-            }
-
-            if ($parameters.ContainsKey('SaveResults')) {
-                try {
-                    Write-Output "Saving $($orgSettings.Name)'s compliance policy data to: $OutputDirectory"
-                    $totalPolicies.GetEnumerator() | ForEach-Object {
-                        if (-NOT($_.Value.Count -eq 0)) {
-                            LogToFile -DataToLog $_.Value -OutputDirectory $OutputDirectory -OutputFile "$($_.key)-$random.csv" -FileType 'csv'
-                        }
-                    }
-
-                    foreach ($hold in $inPlaceHoldsList) {
-                        $holdResults = (($hold -split '(mbx|grp|skp|:|cld|UniH)') -match '\S')
-
-                        switch ($holdResults[0]) {
-                            'UniH' { $prefixDescription = 'eDiscovery cases (holds) in the Security and Compliance Center' }
-                            'cld' { $prefixDescription = 'Exchange mailbox specific hold (in-place hold)' }
-                            'mbx' { $prefixDescription = 'Organization-wide retention policies applied to Exchange mailboxes, Exchange public folders, and 1xN chats in Microsoft Teams. Note 1xN chats are stored in the mailbox of the individual chat participants.' }
-                            'grp' { $prefixDescription = 'Organization-wide retention policies applied to Office 365 groups and channel messages in Microsoft Teams.' }
-                            'skp' { $prefixDescription = 'Indicates that the retention policy is configured to hold items and then delete them after the retention period expires.' }
-                        }
-
-                        switch ($holdResults[3]) {
-                            1 { $retentionActionValueDescription = 'Indicates that the retention policy is configured to delete items. The policy does not retain items.' }
-                            2 { $retentionActionValueDescription = 'Indicates that the retention policy is configured to hold items. The policy does not delete items after the retention period expires.' }
-                            3 { $retentionActionValueDescription = 'Indicates that the retention policy is configured to hold items and then delete them after the retention period expires.' }
-                        }
-
-                        $inPlaceHoldsCustom = [PSCustomObject]@{
-                            Prefix                     = $holdResults[0]
-                            PrefixDescription          = $prefixDescription
-                            GUID                       = $holdResults[1]
-                            RetentionAction            = $holdResults[3]
-                            RetentionActionDescription = $retentionActionValueDescription
-                        }
-                        LogToFile -DataToLog $inPlaceHoldsCustom -OutputDirectory $OutputDirectory -OutputFile "InPlaceHolds-$random.csv" -FileType 'csv'
-                    }
-                }
-                catch {
-                    Write-Output "SAVING RESULTS ERROR: $_"
-                    return
-                }
+                $policyCounter += $CaseHoldPolicyList.count
             }
         }
         catch {
-            Write-Output "ERROR: $_"
+            Write-Output "ADVANCED eDISCOVERY POLICY ERROR: $_"
         }
 
         try {
-            Write-Verbose "Cleaning up and compressing old files for archive"
+            if ($parameters.ContainsKey('SaveResults')) {
+                Write-Output "Saving $($orgSettings.Name)'s compliance policy data to: $OutputDirectory"
+                $totalPolicies.GetEnumerator() | ForEach-Object {
+                    if (-NOT($_.Value.Count -eq 0)) {
+                        LogToFile -DataToLog $_.Value -OutputDirectory $OutputDirectory -OutputFile "$($_.key)-$random.csv" -FileType 'csv' -ErrorAction Stop
+                    }
+                }
+
+                # Save non ArrayList items
+                $output = "The tenant has $($policyCounter) compliance policies and is under the maximum number of $maximumPolicyCount - OK (UNDER LIMIT)"
+                LogToFile -DataToLog $output -OutputDirectory $OutputDirectory -Outputfile "TotalPolicyCount.txt" -FileType 'txt' -ErrorAction Stop
+            }
+        }
+        catch {
+            Write-Output "SAVING RESULTS ERROR: $_"
+        }
+
+        try {
+            Write-Verbose "Archive and remove old files"
             Get-ChildItem -Path $OutputDirectory\*.txt, $OutputDirectory\*.csv -ErrorAction SilentlyContinue | Compress-Archive -DestinationPath "$OutputDirectory\OldFiles-Archive.$(get-date -f yyyy-MM-dd).zip" -Force -CompressionLevel Fastest -ErrorAction SilentlyContinue
             Remove-Item -Path $OutputDirectory\"*.*" -Exclude "*.zip", "*.ps1" -ErrorAction SilentlyContinue
         }
         catch {
             Write-Output "ARCHIVING ERROR: $_"
-            return
         }
 
-        Write-Verbose "Reverting ErrorActionPreference of 'Stop' to $savedErrorActionPreference"
-        $ErrorActionPreference = $savedErrorActionPreference
-        if ($failedConnection) {
-            "CONNECTION FAILURE! Unable to connect to Exchange or the Security and Compliance endpoint. Please check the connection log for more information"
-            LogToFile -DataToLog $connectionErrors -OutputDirectory $OutputDirectory -OutputFile "ConnectionLog-$random.txt" -FileType 'txt'
-            Write-Output "Compliance policy evaluation completed with errors!"
+        try {
+            if ($parameters.ContainsKey('EnableDebugLogging')) {
+                Write-Verbose "Stopping debug logging"
+                Stop-Transcript
+            }
+        }
+        catch {
+            Write-Output "STOP DEBUG LOGGING ERROR: $_"
+        }
+
+        if ($policyCounter -ge $maximumPolicyCount) {
+            $output = "The tenant has $policyCounter compliance policies! This exceeds the $maximumPolicyCount policies limit - ERROR! (OVER LIMIT)"
         }
         else {
-            if ($policyCounter -ge $maximumPolicyCount) { $output = "The tenant has $policyCounter compliance policies! This exceeds the $maximumPolicyCount policies limit - ERROR! (OVER LIMIT)" }
-            else {
-                Write-Output "InPlace policies found: $($inPlaceHoldsList.count)"
-                Write-Output "DLP policies found: $($dlpPolicyList.count)"
-                Write-Output "Retention policies found: $($retentionPolicyList.count)"
-                Write-Output "Standard eDiscovery cases found: $($standardDiscoveryPolicyList.count)"
-                Write-Output "Standard Case holds found found: $($standardDiscoveryCaseHoldsList.count)"
-                Write-Output "Advanced eDiscovery cases found: $($advancedDiscoveryPolicyList.count)"
-                Write-Output "Advanced Case holds found found: $($advancedDiscoveryCaseHoldsList.count)"
-                Write-Output "The tenant has $policyCounter compliance policies and is under the maximum number of $maximumPolicyCount - OK (UNDER LIMIT)"
-                Write-Output "`rEXTRA: Retention labels found: $($retentionLabelList.count)"
-            }
+            Write-Output "InPlace policies found: $($inPlaceHoldsList.count)"
+            Write-Output "DLP policies found: $($dlpPolicyList.count)"
+            Write-Output "Retention policies found: $($retentionPolicyList.count)"
+            Write-Output "Standard eDiscovery cases found: $($standardDiscoveryPolicyList.count)"
+            Write-Output "Standard Case holds found found: $($standardDiscoveryCaseHoldsList.count)"
+            Write-Output "Advanced eDiscovery cases found: $($advancedDiscoveryPolicyList.count)"
+            Write-Output "Advanced Case holds found found: $($CaseHoldPolicyList.count)"
+            Write-Output "The tenant has $($policyCounter) compliance policies and is under the maximum number of $maximumPolicyCount - OK (UNDER LIMIT)"
         }
     }
 
     end {
-        LogToFile -DataToLog $output -OutputDirectory $OutputDirectory -Outputfile "TotalPolicyCount.txt" -FileType 'txt'
-        Write-Output "Saving policy count results to: $OutputDirectory"
+        Write-Output "Completed!"
     }
 }
 
