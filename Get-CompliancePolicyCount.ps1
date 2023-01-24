@@ -347,7 +347,7 @@ function Get-CompliancePolicyCount {
                         }
                     }
                 }
-                $policyCounter += $standardDiscoveryPolicyList.count
+                #$policyCounter += $standardDiscoveryPolicyList.count - For future use
                 $policyCounter += $standardDiscoveryCaseHoldsList.count
             }
         }
@@ -374,7 +374,7 @@ function Get-CompliancePolicyCount {
                         }
                     }
                 }
-                $policyCounter += $advancedDiscoveryPolicyList.count
+                # $policyCounter += $advancedDiscoveryPolicyList.count - For future use
                 $policyCounter += $CaseHoldPolicyList.count
             }
         }
