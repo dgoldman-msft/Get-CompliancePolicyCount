@@ -426,9 +426,7 @@ function Get-CompliancePolicyCount {
             Write-Output "InPlace policies found: $($inPlaceHoldsList.count)"
             Write-Output "DLP policies found: $($dlpPolicyList.count)"
             Write-Output "Retention policies found: $($retentionPolicyList.count)"
-            Write-Output "Standard eDiscovery cases found: $($standardDiscoveryPolicyList.count)"
             Write-Output "Standard Case holds found found: $($standardDiscoveryCaseHoldsList.count)"
-            Write-Output "Advanced eDiscovery cases found: $($advancedDiscoveryPolicyList.count)"
             Write-Output "Advanced Case holds found found: $($CaseHoldPolicyList.count)"
             Write-Output "The tenant has $($policyCounter) compliance policies and is under the maximum number of $maximumPolicyCount - OK (UNDER LIMIT)"
         }
